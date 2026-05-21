@@ -187,6 +187,48 @@
       <main class="main-content" id="main-content">
         <!-- All pages rendered here by JS -->
       </main>
+
+      <!-- AI Chatbot UI (Hidden by default, shown for admin) -->
+      <div id="ai-chatbot-widget" class="hidden">
+        <button id="ai-chat-btn" class="ai-chat-btn" title="Dar AI Assistant">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.5-4.5 10-10 10H5l3-3a10 10 0 0 1 4-17z"/><path d="M15 10h.01"/><path d="M9 10h.01"/><path d="M9 15c1.5 1 4.5 1 6 0"/></svg>
+        </button>
+
+        <div id="ai-chat-panel" class="ai-chat-panel glass-card hidden">
+          <div class="ai-chat-header">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--gold-300)" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              <span style="font-weight:bold;color:var(--gold-300)">Dar AI</span>
+            </div>
+            <div style="display:flex;gap:4px;">
+              <button id="ai-chat-settings-btn" class="header-btn" title="Settings" style="background:transparent;border:none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              </button>
+              <button id="ai-chat-close-btn" class="header-btn" title="Close" style="background:transparent;border:none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+          
+          <div id="ai-chat-settings-panel" class="hidden" style="padding:16px; border-bottom:1px solid var(--border); background:var(--bg-dark); font-size:12px;">
+            <label class="form-label">Gemini API Key</label>
+            <input type="password" id="ai-api-key-input" class="form-input" placeholder="Paste your AI key here..." />
+            <button id="ai-api-key-save" class="btn btn-primary btn-sm" style="margin-top:8px;width:100%;">Save Key</button>
+          </div>
+
+          <div id="ai-chat-messages" class="ai-chat-messages">
+            <div class="ai-msg ai-msg-system">Hello Admin, I'm your AI assistant. I can schedule sessions, check stats, and manage the system for you. How can I help today?</div>
+          </div>
+          
+          <div class="ai-chat-input-area">
+            <input type="text" id="ai-chat-input" placeholder="Ask me to do something..." />
+            <button id="ai-chat-send" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -232,6 +274,7 @@
   <script src="js/pages/student-dashboard.js"></script>
   <script src="js/pages/student-schedule.js"></script>
   <script src="js/pages/parent-dashboard.js"></script>
+  <script src="js/chatbot.js"></script>
   <script src="js/app.js"></script>
 
   <!-- PDF Rendering Container (Hidden) -->

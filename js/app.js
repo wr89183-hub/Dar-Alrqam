@@ -31,6 +31,12 @@
     buildUserArea();
     UI.renderNotifications();
     Router.navigate(Router.getDefaultPage(), true);
+
+    if (Auth.getRole() === 'admin' && window.AI) {
+      window.AI.show();
+    } else if (window.AI) {
+      window.AI.hide();
+    }
   }
 
   function showLogin() {
@@ -220,6 +226,7 @@
     document.getElementById('login-email').value    = '';
     document.getElementById('login-password').value = '';
     UI.toast('You have been signed out.', 'info');
+    if (window.AI) window.AI.hide();
   });
 
   // ── Sidebar Toggle ─────────────────────────────
