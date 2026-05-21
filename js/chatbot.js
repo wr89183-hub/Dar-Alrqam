@@ -9,7 +9,7 @@ class AdminAssistant {
     this.messages = [
       {
         role: 'system',
-        parts: [{ text: "You are Dar AI, an intelligent assistant for the Admin of Dar Al-Arqam Academy. You speak Arabic and English. You have tools to read the database and execute actions like adding sessions, assigning teachers, etc. Always confirm with the user after executing an action." }]
+        parts: [{ text: "You are Dar AI, an intelligent assistant for the Admin of Dar Al-Arqam Academy. You speak Arabic and English. You have tools to read the database and execute actions. You are fully capable of executing bulk actions (e.g., finding all sessions for a specific month using get_sessions, and then deleting them all using delete_sessions). Don't ask the user for IDs if you can find them yourself. Always confirm with the user after executing an action." }]
       }
     ];
     this.initUI();
@@ -234,9 +234,19 @@ class AdminAssistant {
           }
         },
         {
-          name: "delete_session",
-          description: "Delete a scheduled session by ID.",
-          parameters: { type: "OBJECT", properties: { sessionId: { type: "STRING" } }, required: ["sessionId"] }
+          name: "delete_sessions",
+          description: "Delete one or multiple scheduled sessions by their IDs. Pass an array of session IDs.",
+          parameters: { 
+            type: "OBJECT", 
+            properties: { 
+              sessionIds: { 
+                type: "ARRAY", 
+                items: { type: "STRING" },
+                description: "Array of session IDs to delete (e.g. ['SES-001', 'SES-002'])" 
+              } 
+            }, 
+            required: ["sessionIds"] 
+          }
         },
         {
           name: "delete_teacher",
@@ -426,10 +436,12 @@ class AdminAssistant {
           return JSON.stringify({ success: true, message: "Student/Family invoice generated and downloaded." });
         }
       }
-      else if (name === 'delete_session') {
-        await window.DB.deleteSession(args.sessionId);
+      else if (name === 'delete_sessions') {
+        for (const id of args.sessionIds) {
+          await window.DB.deleteSession(id);
+        }
         if (window.Router && window.Router.currentPage === 'admin-schedule') window.Router.navigate('admin-schedule', true);
-        return JSON.stringify({ success: true, message: `Session ${args.sessionId} deleted.` });
+        return JSON.stringify({ success: true, message: `${args.sessionIds.length} sessions deleted.` });
       }
       else if (name === 'delete_teacher') {
         await window.DB.deleteTeacher(args.teacherId);
