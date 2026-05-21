@@ -124,6 +124,63 @@ class AdminAssistant {
             },
             required: ["teacherId", "studentIds", "date", "time", "duration", "courseType"]
           }
+        },
+        {
+          name: "add_teacher",
+          description: "Add a new teacher to the system.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              name: { type: "STRING", description: "Teacher's full name" },
+              email: { type: "STRING", description: "Teacher's email address" },
+              whatsappNumber: { type: "STRING", description: "WhatsApp number" },
+              sessionRate: { type: "INTEGER", description: "Pay rate per session (e.g. 50)" },
+              specialization: { type: "ARRAY", items: { type: "STRING" }, description: "Array of subjects (e.g. ['quran', 'arabic'])" }
+            },
+            required: ["name", "email", "whatsappNumber"]
+          }
+        },
+        {
+          name: "add_student",
+          description: "Add a new student to the system.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              name: { type: "STRING", description: "Student's full name" },
+              familyId: { type: "STRING", description: "ID of the family (e.g. FAM-001)" },
+              email: { type: "STRING", description: "Student's email address" },
+              whatsappNumber: { type: "STRING", description: "WhatsApp number" },
+              sessionRate: { type: "INTEGER", description: "Charge rate per session for the student (e.g. 10)" }
+            },
+            required: ["name", "familyId"]
+          }
+        },
+        {
+          name: "add_family",
+          description: "Add a new family to the system.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              name: { type: "STRING", description: "Family's name (e.g. The Smith Family)" },
+              email: { type: "STRING", description: "Family's email address" },
+              phone: { type: "STRING", description: "Family's phone number" }
+            },
+            required: ["name", "email", "phone"]
+          }
+        },
+        {
+          name: "generate_invoice",
+          description: "Generate a PDF invoice for a teacher or a family/student.",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              targetId: { type: "STRING", description: "The ID of the teacher, student, or family (e.g. TCH-0001, FAM-001, STU-0001)" },
+              type: { type: "STRING", description: "Type of invoice: 'teacher' or 'student'/'family'" },
+              fromDate: { type: "STRING", description: "Optional start date (YYYY-MM-DD)" },
+              toDate: { type: "STRING", description: "Optional end date (YYYY-MM-DD)" }
+            },
+            required: ["targetId", "type"]
+          }
         }
       ]
     }];
@@ -226,6 +283,47 @@ class AdminAssistant {
           window.Router.navigate('admin-schedule', true);
         }
         return JSON.stringify({ success: true, session: session });
+      }
+      else if (name === 'add_teacher') {
+        const teacher = await window.DB.addTeacher({
+          name: args.name,
+          email: args.email,
+          whatsappNumber: args.whatsappNumber,
+          sessionRate: args.sessionRate || 50,
+          specialization: args.specialization || ['quran']
+        });
+        if (window.Router && window.Router.currentPage === 'admin-teachers') window.Router.navigate('admin-teachers', true);
+        return JSON.stringify({ success: true, teacher: teacher });
+      }
+      else if (name === 'add_student') {
+        const student = await window.DB.addStudent({
+          name: args.name,
+          familyId: args.familyId,
+          email: args.email || '',
+          whatsappNumber: args.whatsappNumber || '',
+          sessionRate: args.sessionRate || 10
+        });
+        if (window.Router && window.Router.currentPage === 'admin-students') window.Router.navigate('admin-students', true);
+        return JSON.stringify({ success: true, student: student });
+      }
+      else if (name === 'add_family') {
+        const family = await window.DB.addFamily({
+          name: args.name,
+          email: args.email,
+          phone: args.phone,
+          status: 'active'
+        });
+        if (window.Router && window.Router.currentPage === 'admin-families') window.Router.navigate('admin-families', true);
+        return JSON.stringify({ success: true, family: family });
+      }
+      else if (name === 'generate_invoice') {
+        if (args.type === 'teacher') {
+          window.generateTeacherInvoicePDF(args.targetId, args.fromDate, args.toDate);
+          return JSON.stringify({ success: true, message: "Teacher invoice generated and downloaded." });
+        } else {
+          window.generateStudentInvoicePDF(args.targetId, args.fromDate, args.toDate);
+          return JSON.stringify({ success: true, message: "Student/Family invoice generated and downloaded." });
+        }
       }
       return JSON.stringify({ error: "Function not found" });
     } catch (err) {
