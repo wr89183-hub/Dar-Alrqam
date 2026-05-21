@@ -51,6 +51,53 @@ class AdminAssistant {
     this.chatInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') this.handleSend();
     });
+
+    this.initSpeechRecognition();
+  }
+
+  initSpeechRecognition() {
+    this.chatMic = document.getElementById('ai-chat-mic');
+    if (!this.chatMic) return;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      this.recognition = new SpeechRecognition();
+      this.recognition.lang = 'ar-SA'; // Default to Arabic
+      this.recognition.interimResults = false;
+      this.recognition.maxAlternatives = 1;
+
+      this.recognition.onstart = () => {
+        this.chatMic.classList.add('recording');
+        this.chatInput.placeholder = "جاري الاستماع...";
+      };
+
+      this.recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        this.chatInput.value = transcript;
+        this.handleSend(); // Auto-send when speech is captured
+      };
+
+      this.recognition.onerror = (event) => {
+        console.error("Speech recognition error:", event.error);
+        this.chatMic.classList.remove('recording');
+        this.chatInput.placeholder = "اكتب طلبك أو استفسارك هنا...";
+      };
+
+      this.recognition.onend = () => {
+        this.chatMic.classList.remove('recording');
+        this.chatInput.placeholder = "اكتب طلبك أو استفسارك هنا...";
+      };
+
+      this.chatMic.addEventListener('click', () => {
+        if (this.chatMic.classList.contains('recording')) {
+          this.recognition.stop();
+        } else {
+          this.recognition.start();
+        }
+      });
+    } else {
+      this.chatMic.style.display = 'none'; // Hide if not supported
+    }
   }
 
   togglePanel() {
