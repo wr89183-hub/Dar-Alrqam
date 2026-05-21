@@ -157,6 +157,10 @@ class AdminAssistant {
           description: "Get a list of all students in the academy with their IDs and names.",
         },
         {
+          name: "get_sessions",
+          description: "Get a list of scheduled sessions. Use this to find session IDs before deleting or updating them, or to check the schedule.",
+        },
+        {
           name: "add_session",
           description: "Schedule a new session for a student with a teacher.",
           parameters: {
@@ -346,6 +350,23 @@ class AdminAssistant {
       else if (name === 'get_students') {
         const students = window.DB.getStudents().map(s => ({ id: s.id, name: s.name }));
         return JSON.stringify(students);
+      }
+      else if (name === 'get_sessions') {
+        // Return sessions with some readable info
+        const sessions = window.DB.getSessions().map(s => {
+          const t = window.DB.getTeacher(s.teacherId);
+          const stus = (s.studentIds || []).map(id => window.DB.getStudent(id)?.name).join(', ');
+          return {
+            id: s.id,
+            date: s.date,
+            time: s.time,
+            courseType: s.courseType,
+            status: s.status,
+            teacherName: t ? t.name : 'Unknown',
+            students: stus
+          };
+        });
+        return JSON.stringify(sessions);
       }
       else if (name === 'add_session') {
         const session = await window.DB.addSession({
