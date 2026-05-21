@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dar Al-Arqam Academy — Online Management System</title>
+  <meta name="description" content="Complete management platform for Dar Al-Arqam Academy — handling student enrollment, scheduling, attendance, and financial tracking for Quran, Arabic, and Islamic studies." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Amiri:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/design-system.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/pages.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+</head>
+<body>
+
+  <!-- ==================== LOGIN PAGE ==================== -->
+  <div id="login-page" class="page active">
+    <div class="login-bg">
+      <div class="login-orb orb-1"></div>
+      <div class="login-orb orb-2"></div>
+      <div class="login-orb orb-3"></div>
+    </div>
+    <div class="login-container">
+      <div class="login-card glass-card">
+        <div class="login-brand">
+          <div class="brand-icon">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M16 2L4 8v8c0 7.4 5.1 14.3 12 16 6.9-1.7 12-8.6 12-16V8L16 2z" fill="url(#shield-grad)"/><defs><linearGradient id="shield-grad" x1="4" y1="2" x2="28" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#C9A84C"/><stop offset="1" stop-color="#8B6914"/></linearGradient></defs></svg>
+          </div>
+          <div>
+            <h1 class="brand-name" data-i18n="Dar Al-Arqam Academy">Dar Al-Arqam Academy</h1>
+            <p class="brand-tagline" data-i18n="Management System">Management System</p>
+          </div>
+        </div>
+        <p class="login-subtitle" data-i18n="Sign in to your portal">Sign in to your portal</p>
+        <div class="auth-tabs" id="auth-tabs" style="display:flex;gap:var(--space-2);margin-bottom:var(--space-4)">
+          <button id="tab-login" class="btn btn-secondary" style="flex:1" data-i18n="Sign In">Sign In</button>
+          <button id="tab-register" class="btn btn-ghost" style="flex:1" data-i18n="Register">Register</button>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <form id="login-form" class="auth-form" style="display:block">
+          <div class="form-group">
+            <label class="form-label" for="login-email" data-i18n="Email Address">Email Address</label>
+            <div class="input-wrapper">
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
+              <input type="email" id="login-email" class="form-input" placeholder="Enter your email" autocomplete="email" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="login-password" data-i18n="Password">Password</label>
+            <div class="input-wrapper">
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input type="password" id="login-password" class="form-input" placeholder="Enter your password" autocomplete="current-password" />
+            </div>
+          </div>
+          <p id="login-error" class="error-text hidden"></p>
+          <button type="submit" id="login-btn" class="btn btn-primary btn-full btn-lg">
+            <span data-i18n="Sign In">Sign In</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+        </form>
+
+        <!-- REGISTER FORM -->
+        <form id="register-form" class="auth-form" style="display:none">
+          <div style="display:flex;gap:var(--space-2)">
+            <div class="form-group" style="flex:1">
+              <label class="form-label" for="reg-first">First Name</label>
+              <div class="input-wrapper"><input type="text" id="reg-first" class="form-input" required /></div>
+            </div>
+            <div class="form-group" style="flex:1">
+              <label class="form-label" for="reg-last">Last Name</label>
+              <div class="input-wrapper"><input type="text" id="reg-last" class="form-input" required /></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-email" data-i18n="Email Address">Email Address</label>
+            <div class="input-wrapper"><input type="email" id="reg-email" class="form-input" required /></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-password" data-i18n="Password">Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="reg-password" class="form-input" placeholder="Minimum 6 characters" required minlength="6"/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-phone">WhatsApp Number <span style="font-size:10px;color:red;font-weight:bold">(Private)</span></label>
+            <div class="input-wrapper"><input type="tel" id="reg-phone" class="form-input" required /></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">I am registering as a:</label>
+            <div style="display:flex;gap:var(--space-2)">
+              <label style="flex:1;padding:12px;border:1px solid var(--border);border-radius:4px;cursor:pointer;text-align:center"><input type="radio" name="reg-role" value="student" checked /> Student</label>
+              <label style="flex:1;padding:12px;border:1px solid var(--border);border-radius:4px;cursor:pointer;text-align:center"><input type="radio" name="reg-role" value="teacher" /> Teacher</label>
+              <label style="flex:1;padding:12px;border:1px solid var(--border);border-radius:4px;cursor:pointer;text-align:center"><input type="radio" name="reg-role" value="admin" /> Manager</label>
+            </div>
+          </div>
+          <div class="form-group hidden" id="admin-passcode-group" style="margin-top:var(--space-2)">
+            <label class="form-label" style="color:var(--gold-300)">Manager Passcode</label>
+            <div class="input-wrapper"><input type="password" id="reg-admin-pass" class="form-input" placeholder="Secret Key Required" /></div>
+          </div>
+          </div>
+          <p id="reg-error" class="error-text hidden"></p>
+          <button type="submit" id="reg-btn" class="btn btn-primary btn-full btn-lg">Create Account</button>
+        </form>
+
+        <!-- OTP FORM -->
+        <form id="otp-form" class="auth-form" style="display:none">
+          <div class="form-group">
+            <label class="form-label">Verification Code Sent!</label>
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Please check your email for the 6-digit OTP code.</p>
+            <div class="input-wrapper"><input type="text" id="otp-code" class="form-input" placeholder="000000" style="text-align:center;letter-spacing:8px;font-weight:bold;font-size:24px" /></div>
+          </div>
+          <p id="otp-error" class="error-text hidden"></p>
+          <button type="submit" id="verify-otp-btn" class="btn btn-primary btn-full btn-lg">Verify & Connect</button>
+          <button type="button" id="back-to-login" class="btn btn-ghost btn-full" style="margin-top:8px">Back to Login</button>
+        </form>
+
+        <!-- (Demo tools removed securely) -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN APP ==================== -->
+  <div id="app-page" class="page">
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-brand">
+          <div class="brand-icon-sm">
+            <svg width="20" height="20" viewBox="0 0 32 32" fill="none"><path d="M16 2L4 8v8c0 7.4 5.1 14.3 12 16 6.9-1.7 12-8.6 12-16V8L16 2z" fill="url(#shield-grad2)"/><defs><linearGradient id="shield-grad2" x1="4" y1="2" x2="28" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#C9A84C"/><stop offset="1" stop-color="#8B6914"/></linearGradient></defs></svg>
+          </div>
+          <span class="sidebar-brand-text" data-i18n="Dar Al-Arqam Academy">Dar Al-Arqam Academy</span>
+        </div>
+        <button id="sidebar-toggle" class="sidebar-toggle-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+      <nav class="sidebar-nav" id="sidebar-nav">
+        <!-- Populated by JS based on role -->
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user" id="sidebar-user-info">
+          <!-- user info populated by JS -->
+        </div>
+        <button id="logout-btn" class="btn-logout">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span data-i18n="Sign Out">Sign Out</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-wrapper" id="main-wrapper">
+      <header class="top-header">
+        <div class="header-left">
+          <button id="mobile-menu-btn" class="mobile-menu-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div class="header-breadcrumb">
+            <span id="page-title" class="page-title-text">Dashboard</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <button class="header-btn" id="lang-toggle-btn" title="تغيير اللغة" style="font-weight:700;font-size:var(--text-sm)">ع</button>
+          <div class="header-date" id="header-date"></div>
+          <button class="header-btn notification-btn" id="notif-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="notif-badge" id="notif-badge">3</span>
+          </button>
+          <div class="header-avatar" id="header-avatar">A</div>
+        </div>
+      </header>
+
+      <!-- Notification Dropdown -->
+      <div class="notif-dropdown glass-card hidden" id="notif-dropdown">
+        <div class="notif-header">
+          <span data-i18n="Notifications">Notifications</span>
+          <button class="mark-all-read-btn" id="mark-all-read" data-i18n="Mark all read">Mark all read</button>
+        </div>
+        <div id="notif-list" class="notif-list"></div>
+      </div>
+
+      <main class="main-content" id="main-content">
+        <!-- All pages rendered here by JS -->
+      </main>
+    </div>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal glass-card" id="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-title"></h3>
+        <button class="modal-close" id="modal-close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-init.js"></script>
+  
+  <!-- Print & PDF Utilities -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <script src="js/data.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/router.js"></script>
+  <script src="js/pdf-generator.js"></script>
+  <script src="js/pages/admin-dashboard.js"></script>
+  <script src="js/pages/admin-students.js"></script>
+  <script src="js/pages/admin-teachers.js"></script>
+  <script src="js/pages/admin-schedule.js"></script>
+  <script src="js/pages/admin-families.js"></script>
+  <script src="js/pages/admin-finance.js"></script>
+  <script src="js/pages/admin-communications.js"></script>
+  <script src="js/pages/teacher-dashboard.js"></script>
+  <script src="js/pages/teacher-sessions.js"></script>
+  <script src="js/pages/teacher-attendance.js"></script>
+  <script src="js/pages/student-dashboard.js"></script>
+  <script src="js/pages/student-schedule.js"></script>
+  <script src="js/pages/parent-dashboard.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- PDF Rendering Container (Hidden) -->
+  <div id="invoice-print-container" style="display:none;"></div>
+</body>
+</html>

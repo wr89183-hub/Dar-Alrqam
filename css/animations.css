@@ -1,0 +1,127 @@
+/* ================================================
+   ANIMATIONS & KEYFRAMES
+   ================================================ */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideLeftFade {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideRightFade {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(20px); }
+}
+
+@keyframes orbFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(30px, -20px) scale(1.05); }
+  66%       { transform: translate(-20px, 15px) scale(0.97); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes countUp {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes borderGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(201,168,76,0.2); }
+  50%       { box-shadow: 0 0 20px rgba(201,168,76,0.5); }
+}
+
+@keyframes barGrow {
+  from { transform: scaleY(0); transform-origin: bottom; }
+  to   { transform: scaleY(1); transform-origin: bottom; }
+}
+
+/* Page transitions */
+.page-enter {
+  animation: slideUpFade 0.3s cubic-bezier(0.4,0,0.2,1) both;
+}
+
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.08) 50%,
+    rgba(255,255,255,0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+.skeleton-text { height: 14px; width: 80%; }
+.skeleton-title { height: 20px; width: 60%; }
+.skeleton-block { height: 80px; width: 100%; }
+
+/* Spinner */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.1);
+  border-top-color: var(--gold-300);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+/* Pulse dot (live indicator) */
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: pulse 2s ease-in-out infinite;
+  display: inline-block;
+}
+
+/* Number counter animation utility */
+.counter-anim { animation: countUp 0.4s cubic-bezier(0.4,0,0.2,1) both; }
+
+/* Gold glow on focus elements */
+.glow-on-active:active {
+  animation: borderGlow 0.4s ease both;
+}
+
+/* Bar chart animation */
+.chart-bar { animation: barGrow 0.8s cubic-bezier(0.4,0,0.2,1) both; }
+.chart-bar:nth-child(1) { animation-delay: 0.05s; }
+.chart-bar:nth-child(2) { animation-delay: 0.10s; }
+.chart-bar:nth-child(3) { animation-delay: 0.15s; }
+.chart-bar:nth-child(4) { animation-delay: 0.20s; }
+.chart-bar:nth-child(5) { animation-delay: 0.25s; }
+.chart-bar:nth-child(6) { animation-delay: 0.30s; }
+.chart-bar:nth-child(7) { animation-delay: 0.35s; }
+
+/* Stat card stagger */
+.stat-card { animation: slideUpFade 0.4s cubic-bezier(0.4,0,0.2,1) both; }
+.stat-card:nth-child(1) { animation-delay: 0.05s; }
+.stat-card:nth-child(2) { animation-delay: 0.10s; }
+.stat-card:nth-child(3) { animation-delay: 0.15s; }
+.stat-card:nth-child(4) { animation-delay: 0.20s; }
+.stat-card:nth-child(5) { animation-delay: 0.25s; }
+.stat-card:nth-child(6) { animation-delay: 0.30s; }

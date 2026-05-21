@@ -1,0 +1,294 @@
+/* ================================================
+   PAGES — Page-specific styles
+   ================================================ */
+
+/* ── Admin Dashboard ── */
+.dashboard-welcome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-8);
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, rgba(201,168,76,0.08) 0%, rgba(78,205,196,0.04) 100%);
+  border: 1px solid var(--border-gold);
+  position: relative;
+  overflow: hidden;
+}
+.dashboard-welcome::after {
+  content: '﷽';
+  font-family: var(--font-serif);
+  position: absolute;
+  right: var(--space-8);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 2.5rem;
+  color: rgba(201,168,76,0.08);
+  pointer-events: none;
+}
+.welcome-greeting {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.welcome-name {
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.welcome-name span { color: var(--gold-300); }
+.welcome-time {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-top: var(--space-2);
+}
+.welcome-stats { display: flex; gap: var(--space-6); }
+.welcome-stat-item { text-align: center; }
+.welcome-stat-value { font-size: var(--text-xl); font-weight: 800; color: var(--gold-300); }
+.welcome-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+
+/* Revenue chart area */
+.revenue-chart-area {
+  height: 180px;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-2) 0;
+  position: relative;
+}
+.rev-bar-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  height: 100%;
+  justify-content: flex-end;
+}
+.rev-bar {
+  width: 100%;
+  border-radius: 6px 6px 0 0;
+  transition: height 1s cubic-bezier(0.4,0,0.2,1);
+  cursor: pointer;
+  position: relative;
+}
+.rev-bar:hover::after {
+  content: attr(data-value);
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  background: var(--glass-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+.rev-label { font-size: 10px; color: var(--text-muted); font-weight: 600; }
+
+/* Attendance Rate Gauge */
+.gauge-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-5);
+}
+.gauge-svg { overflow: visible; }
+.gauge-value {
+  font-size: var(--text-4xl);
+  font-weight: 900;
+  fill: var(--text-primary);
+  text-anchor: middle;
+}
+.gauge-label {
+  font-size: 13px;
+  fill: var(--text-muted);
+  text-anchor: middle;
+}
+
+/* Marketing table */
+.marketing-table { width: 100%; }
+.mkt-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.mkt-row:last-child { border-bottom: none; }
+.mkt-channel { font-size: var(--text-sm); font-weight: 600; flex: 1; }
+.mkt-leads { font-size: var(--text-sm); color: var(--text-secondary); min-width: 60px; text-align: right; }
+.mkt-cost { font-size: var(--text-sm); color: var(--text-secondary); min-width: 70px; text-align: right; }
+.mkt-conv { min-width: 80px; }
+
+/* ── Student / Teacher Profile ── */
+.profile-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-8);
+  background: linear-gradient(135deg, rgba(201,168,76,0.05) 0%, transparent 100%);
+  border-bottom: 1px solid var(--border);
+}
+.profile-avatar-lg {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-xl);
+  background: var(--grad-gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  color: var(--text-inverse);
+  flex-shrink: 0;
+  border: 3px solid var(--border-gold);
+}
+.profile-info { flex: 1; }
+.profile-name { font-size: var(--text-2xl); font-weight: 800; }
+.profile-code { font-size: var(--text-sm); color: var(--gold-300); font-weight: 600; margin: 4px 0; }
+.profile-meta { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-2); }
+.profile-meta-item { font-size: var(--text-xs); color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
+
+/* ── Finance P&L ── */
+.pl-table { width: 100%; }
+.pl-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+.pl-row:last-child { border-bottom: none; }
+.pl-row.total {
+  font-weight: 800;
+  font-size: var(--text-base);
+  border-top: 2px solid var(--border-light);
+  margin-top: var(--space-2);
+  padding-top: var(--space-4);
+}
+.pl-row.income .pl-value { color: var(--success); }
+.pl-row.expense .pl-value { color: var(--danger); }
+.pl-row.profit .pl-value { color: var(--gold-300); font-weight: 800; }
+.pl-row.section-header { font-weight: 700; color: var(--text-muted); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em; padding-top: var(--space-5); }
+
+/* ── Communication Templates ── */
+.notif-template-card {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+  margin-bottom: var(--space-3);
+  transition: all var(--transition-base);
+}
+.notif-template-card:hover { border-color: var(--border-light); background: rgba(255,255,255,0.04); }
+.notif-template-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2); }
+.notif-template-type { font-size: var(--text-sm); font-weight: 700; }
+.notif-template-body { font-size: var(--text-xs); color: var(--text-muted); line-height: 1.6; }
+.notif-template-channels { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+
+/* ── Teacher Session Countdown ── */
+.next-session-banner {
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, rgba(78,205,196,0.08) 0%, rgba(201,168,76,0.05) 100%);
+  border: 1px solid rgba(78,205,196,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+.next-session-label { font-size: var(--text-xs); color: var(--teal-300); font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+.next-session-name { font-size: var(--text-xl); font-weight: 800; color: var(--text-primary); margin-top: 4px; }
+.next-session-time { font-size: var(--text-sm); color: var(--text-secondary); }
+.next-session-countdown { text-align: center; }
+.countdown-time { font-size: var(--text-3xl); font-weight: 900; color: var(--gold-300); font-variant-numeric: tabular-nums; line-height: 1; }
+.countdown-sub { font-size: var(--text-xs); color: var(--text-muted); font-weight: 500; margin-top: 4px; }
+
+/* ── Student Attendance Summary ── */
+.att-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+.att-summary-card {
+  text-align: center;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+.att-summary-value { font-size: var(--text-3xl); font-weight: 900; }
+.att-summary-label { font-size: var(--text-xs); color: var(--text-muted); font-weight: 600; margin-top: 2px; }
+
+/* ── Family/Parent Portal ── */
+.family-children-tabs {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+.child-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all var(--transition-base);
+  font-family: inherit;
+}
+.child-tab:hover { border-color: var(--border-light); color: var(--text-primary); }
+.child-tab.active {
+  background: rgba(201,168,76,0.1);
+  border-color: var(--border-gold);
+  color: var(--gold-300);
+}
+
+/* ── Zoom Section ── */
+.zoom-join-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(37,150,254,0.2);
+  background: rgba(37,150,254,0.04);
+}
+.zoom-icon { font-size: 2.5rem; }
+.zoom-info { flex: 1; }
+.zoom-title { font-size: var(--text-base); font-weight: 700; }
+.zoom-meta { font-size: var(--text-xs); color: var(--text-muted); margin-top: 4px; }
+.zoom-link-input {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--info);
+  background: rgba(52,152,219,0.08);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(52,152,219,0.2);
+  margin-top: var(--space-2);
+  word-break: break-all;
+}
+
+/* ── Responsive Tweaks ── */
+@media (max-width: 640px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .att-summary-grid { grid-template-columns: 1fr; }
+  .finance-grid { grid-template-columns: 1fr; }
+  .dashboard-welcome { flex-direction: column; gap: var(--space-4); }
+  .dashboard-welcome::after { display: none; }
+}
