@@ -228,6 +228,39 @@ class AdminAssistant {
             },
             required: ["targetId", "type"]
           }
+        },
+        {
+          name: "delete_session",
+          description: "Delete a scheduled session by ID.",
+          parameters: { type: "OBJECT", properties: { sessionId: { type: "STRING" } }, required: ["sessionId"] }
+        },
+        {
+          name: "delete_teacher",
+          description: "Delete a teacher by ID.",
+          parameters: { type: "OBJECT", properties: { teacherId: { type: "STRING" } }, required: ["teacherId"] }
+        },
+        {
+          name: "delete_student",
+          description: "Delete a student by ID.",
+          parameters: { type: "OBJECT", properties: { studentId: { type: "STRING" } }, required: ["studentId"] }
+        },
+        {
+          name: "update_session",
+          description: "Update details of an existing session (like changing date, time, or status).",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              sessionId: { type: "STRING" },
+              date: { type: "STRING", description: "YYYY-MM-DD" },
+              time: { type: "STRING", description: "HH:MM" },
+              status: { type: "STRING", description: "scheduled, completed, cancelled" }
+            },
+            required: ["sessionId"]
+          }
+        },
+        {
+          name: "get_dashboard_stats",
+          description: "Get general statistics about the academy (total revenue, active students, teachers count, etc.)",
         }
       ]
     }];
@@ -371,6 +404,34 @@ class AdminAssistant {
           window.generateStudentInvoicePDF(args.targetId, args.fromDate, args.toDate);
           return JSON.stringify({ success: true, message: "Student/Family invoice generated and downloaded." });
         }
+      }
+      else if (name === 'delete_session') {
+        await window.DB.deleteSession(args.sessionId);
+        if (window.Router && window.Router.currentPage === 'admin-schedule') window.Router.navigate('admin-schedule', true);
+        return JSON.stringify({ success: true, message: `Session ${args.sessionId} deleted.` });
+      }
+      else if (name === 'delete_teacher') {
+        await window.DB.deleteTeacher(args.teacherId);
+        if (window.Router && window.Router.currentPage === 'admin-teachers') window.Router.navigate('admin-teachers', true);
+        return JSON.stringify({ success: true, message: `Teacher ${args.teacherId} deleted.` });
+      }
+      else if (name === 'delete_student') {
+        await window.DB.deleteStudent(args.studentId);
+        if (window.Router && window.Router.currentPage === 'admin-students') window.Router.navigate('admin-students', true);
+        return JSON.stringify({ success: true, message: `Student ${args.studentId} deleted.` });
+      }
+      else if (name === 'update_session') {
+        let updateData = {};
+        if (args.date) updateData.date = args.date;
+        if (args.time) updateData.time = args.time;
+        if (args.status) updateData.status = args.status;
+        await window.DB.updateSession(args.sessionId, updateData);
+        if (window.Router && window.Router.currentPage === 'admin-schedule') window.Router.navigate('admin-schedule', true);
+        return JSON.stringify({ success: true, message: `Session ${args.sessionId} updated.` });
+      }
+      else if (name === 'get_dashboard_stats') {
+        const stats = window.DB.getDashboardStats();
+        return JSON.stringify(stats);
       }
       return JSON.stringify({ error: "Function not found" });
     } catch (err) {
