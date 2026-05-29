@@ -105,23 +105,27 @@ function renderCalendarView(container) {
     byDate[s.date].push(s);
   });
 
-  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  let calHTML = `<div class="content-card"><div class="calendar-wrap" style="padding:var(--space-6);">
-    <div class="calendar-nav" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-6);">
-      <div style="display:flex;align-items:center;gap:var(--space-3)">
-        <button class="cal-nav-btn" onclick="prevMonth()" title="Previous Month"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
-        <button class="btn btn-secondary btn-sm" onclick="goToToday()">${window.t?window.t('Today'):'Today'}</button>
-        <button class="cal-nav-btn" onclick="nextMonth()" title="Next Month"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+  const dayNames = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  let calHTML = `<div class="content-card" style="padding:var(--space-4);"><div class="calendar-wrap" style="background:#fff; border-radius:8px; border:1px solid #dadce0; overflow:hidden; color:#3c4043; font-family: 'Roboto', 'Inter', sans-serif;">
+    <div class="calendar-nav" style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px; border-bottom:1px solid #dadce0;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="btn btn-secondary btn-sm" onclick="goToToday()" style="background:#fff; color:#3c4043; border:1px solid #dadce0; font-weight:500;">${window.t?window.t('Today'):'Today'}</button>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <button class="cal-nav-btn" onclick="prevMonth()" title="Previous Month" style="background:transparent; border:none; color:#5f6368; cursor:pointer; padding:4px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <button class="cal-nav-btn" onclick="nextMonth()" title="Next Month" style="background:transparent; border:none; color:#5f6368; cursor:pointer; padding:4px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+        </div>
+        <h3 class="cal-month-title" style="font-size:22px;font-weight:400;color:#3c4043;margin:0;margin-left:8px;">${monthNames[month]} ${year}</h3>
       </div>
-      <h3 class="cal-month-title" style="font-size:24px;font-weight:800;color:var(--text-primary);">${monthNames[month]} ${year}</h3>
-      <div style="width:120px;"></div>
     </div>
-    <div class="calendar-grid" style="display:grid;grid-template-columns:repeat(7, 1fr);gap:6px;">
-      ${dayNames.map(d => `<div class="cal-day-header" style="text-align:center;font-weight:700;padding-bottom:10px;color:var(--text-secondary);">${d}</div>`).join('')}`;
+    
+    <div style="overflow-x:auto;">
+      <div class="calendar-grid" style="display:grid;grid-template-columns:repeat(7, 1fr);background:#dadce0;gap:1px;min-width:700px;">
+        ${dayNames.map(d => `<div class="cal-day-header" style="background:#fff;text-align:center;font-weight:500;font-size:11px;color:#70757a;padding:10px 0;">${d}</div>`).join('')}
+`;
 
   // Empty cells before month start
   for (let i = 0; i < firstDay; i++) {
-    calHTML += `<div class="cal-day other-month" style="min-height:100px;background:rgba(255,255,255,0.02);border:1px solid transparent;"></div>`;
+    calHTML += `<div class="cal-day other-month" style="background:#fff; min-height:120px;"></div>`;
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -132,31 +136,33 @@ function renderCalendarView(container) {
     // Sort sessions by time within the day
     daySessionsArr.sort((a,b) => a.time.localeCompare(b.time));
     
-    calHTML += `<div class="cal-day${isToday ? ' today' : ''}" onclick="openDayModal('${dateStr}')" style="min-height:110px;padding:6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:rgba(255,255,255,0.01);cursor:pointer;transition:all 0.2s;">
-      <span class="cal-day-num" style="display:inline-block;margin-bottom:6px;font-weight:${isToday ? '800' : '600'};color:${isToday ? 'var(--gold-300)' : 'var(--text-secondary)'};">${d}</span>
-      <div style="display:flex;flex-direction:column;gap:3px;">
-      ${daySessionsArr.slice(0, 4).map(s => {
+    let dayNumHTML = isToday 
+      ? `<div style="background:#1a73e8; color:#fff; border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; margin:4px auto; font-size:12px; font-weight:500;">${d}</div>`
+      : `<div style="text-align:center; margin:4px 0; font-size:12px; font-weight:500; color:#3c4043; height:24px; display:flex; align-items:center; justify-content:center;">${d}</div>`;
+
+    calHTML += `<div class="cal-day${isToday ? ' today' : ''}" onclick="openDayModal('${dateStr}')" style="background:#fff; min-height:120px; padding:2px; cursor:pointer; transition:background 0.2s;" onmouseover="this.style.background='#f1f3f4'" onmouseout="this.style.background='#fff'">
+      ${dayNumHTML}
+      <div style="display:flex;flex-direction:column;gap:2px;padding:0 2px;">
+      ${daySessionsArr.slice(0, 3).map(s => {
         const teacher = DB.getTeacher(s.teacherId);
         const tName = teacher ? teacher.name.split(' ')[0] : 'TBA';
-        const colorClass = UI.fmt.courseColor(s.courseType);
         
-        // Define colors based on course Type
-        let bgStyle = 'rgba(255,255,255,0.1)';
-        let textColor = '#fff';
-        if (s.courseType.toLowerCase() === 'quran') { bgStyle = 'rgba(46,204,113,0.2)'; textColor = '#2ECC71'; }
-        if (s.courseType.toLowerCase() === 'arabic') { bgStyle = 'rgba(201,168,76,0.2)'; textColor = 'var(--gold-300)'; }
-        if (s.courseType.toLowerCase() === 'fiqh') { bgStyle = 'rgba(155,89,182,0.2)'; textColor = '#BB8FCE'; }
+        // Define colors based on course Type (Google Calendar solid style)
+        let bgStyle = '#8e24aa'; // default purple
+        if (s.courseType.toLowerCase() === 'quran') { bgStyle = '#0b8043'; } // Green
+        if (s.courseType.toLowerCase() === 'arabic') { bgStyle = '#039be5'; } // Blue
+        if (s.courseType.toLowerCase() === 'fiqh') { bgStyle = '#f09300'; } // Orange
 
-        return `<div class="cal-event" style="background:${bgStyle};color:${textColor};padding:3px 6px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="event.stopPropagation(); viewSessionModal('${s.id}')" title="${UI.fmt.time(s.time)} - ${tName}">
-          ${UI.fmt.time(s.time)} ${tName}
+        return `<div class="cal-event" style="background:${bgStyle};color:#fff;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="event.stopPropagation(); viewSessionModal('${s.id}')" title="${UI.fmt.time(s.time)} - ${tName}">
+          ${s.time.substring(0,5)} ${tName}
         </div>`;
       }).join('')}
-      ${daySessionsArr.length > 4 ? `<div style="font-size:10px;color:var(--text-muted);text-align:center;font-weight:600;margin-top:2px;">+${daySessionsArr.length-4} more</div>` : ''}
+      ${daySessionsArr.length > 3 ? `<div style="font-size:11px;color:#3c4043;font-weight:500;padding-left:4px;margin-top:2px;cursor:pointer;" onclick="event.stopPropagation(); openDayModal('${dateStr}')">+${daySessionsArr.length-3} more</div>` : ''}
       </div>
     </div>`;
   }
 
-  calHTML += `</div></div></div>`;
+  calHTML += `</div></div></div></div>`;
   container.innerHTML = calHTML;
 }
 
