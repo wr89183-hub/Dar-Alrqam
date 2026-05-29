@@ -30,9 +30,19 @@ Router.register('admin-dashboard', function(container) {
           <div class="welcome-stat-label">Growth Rate</div>
         </div>
       </div>
+      </div>
     </div>
 
-    ${renderPendingApprovals(pendingUsers)}
+    <div style="display: flex; justify-content: flex-end; margin-bottom: var(--space-4);">
+        <button class="btn btn-secondary btn-sm" onclick="refreshDashboardData()" id="btn-refresh-dash">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 1 0 2.63-6.37L2 12"/><path d="M3 22v-6h6"/></svg>
+            ${t('Refresh Data')}
+        </button>
+    </div>
+
+    <div id="pending-approvals-wrap">
+      ${renderPendingApprovals(pendingUsers)}
+    </div>
 
     <!-- KPI Stats -->
     <div class="stats-grid">
@@ -195,10 +205,38 @@ Router.register('admin-dashboard', function(container) {
       </div>
     </div>
   `;
+
+  // Auto-refresh pending approvals in the background
+  setTimeout(async () => {
+    if (Router.currentPage !== 'admin-dashboard') return;
+    try {
+      const { data: users } = await supabaseClient.from('user_profiles').select('*');
+      if (users && Router.currentPage === 'admin-dashboard') {
+        DB._data.users = users;
+        const newPending = users.filter(u => u.approval_status === 'pending');
+        const wrap = document.getElementById('pending-approvals-wrap');
+        if (wrap) {
+           wrap.innerHTML = renderPendingApprovals(newPending);
+        }
+      }
+    } catch(err) {
+      console.error('Auto-refresh error:', err);
+    }
+  }, 500);
+
   } catch(e) {
     container.innerHTML = `<div class="error-text" style="padding: 20px; color: red;"><h3>Dashboard Error:</h3><pre>${e.message}\n${e.stack}</pre></div>`;
   }
 });
+
+window.refreshDashboardData = async function() {
+  const btn = document.getElementById('btn-refresh-dash');
+  if (btn) btn.innerHTML = `<div class="spinner" style="width:14px;height:14px;margin-right:4px;border-width:2px;"></div> ${window.t ? window.t('Refreshing...') : 'Refreshing...'}`;
+  await DB.loadState();
+  if (Router.currentPage === 'admin-dashboard') {
+    Router.navigate('admin-dashboard', true);
+  }
+};
 
 function getTimeOfDay() {
   const h = new Date().getHours();

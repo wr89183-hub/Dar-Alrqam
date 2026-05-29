@@ -6,7 +6,10 @@ let calendarState = {
   month: new Date().getMonth(),
 };
 
-Router.register('admin-schedule', function(container) {
+Router.register('admin-schedule', async function(container) {
+  // Show loading state first, then load real-time
+  container.innerHTML = `<div class="empty-state">Loading schedule...</div>`;
+  await DB.loadState();
   renderSchedulePage(container);
 });
 
@@ -19,7 +22,7 @@ function renderSchedulePage(container) {
       </div>
       <div style="display:flex;gap:var(--space-3)">
         <button class="btn btn-secondary" id="view-list-btn" onclick="switchScheduleView('list')">📋 ${window.t?window.t('List View'):'List View'}</button>
-        <button class="btn btn-secondary" id="view-cal-btn" onclick="switchScheduleView('calendar')">📅 ${window.t?window.t('Calendar View'):'Calendar View'}</button>
+        <button class="btn btn-primary" id="view-cal-btn" onclick="switchScheduleView('calendar')">📅 ${window.t?window.t('Calendar View'):'Calendar View'}</button>
         <button class="btn btn-primary" onclick="openNewSessionModal()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           ${window.t?window.t('New Session'):'New Session'}
@@ -37,14 +40,17 @@ function renderSchedulePage(container) {
     <div id="schedule-view-content"></div>
   `;
 
+  // Start with calendar view by default
   switchScheduleView('calendar');
 }
 
-window.switchScheduleView = function(view) {
+window.switchScheduleView = async function(view) {
   const content = document.getElementById('schedule-view-content');
   const listBtn = document.getElementById('view-list-btn');
   const calBtn  = document.getElementById('view-cal-btn');
   if (!content) return;
+
+  await DB.loadState(); // Ensure real-time load before rendering
 
   if (view === 'calendar') {
     if (calBtn)  calBtn.className  = 'btn btn-primary';
@@ -55,6 +61,31 @@ window.switchScheduleView = function(view) {
     if (calBtn)  calBtn.className  = 'btn btn-secondary';
     renderListView(content);
   }
+};
+
+window.goToToday = async function() {
+  const d = new Date();
+  calendarState.year = d.getFullYear();
+  calendarState.month = d.getMonth();
+  const content = document.getElementById('schedule-view-content');
+  if (content) {
+    await DB.loadState();
+    renderCalendarView(content);
+  }
+};
+
+window.prevMonth = async function() { 
+  calendarState.month--; 
+  if(calendarState.month < 0){ calendarState.month = 11; calendarState.year--; } 
+  await DB.loadState(); 
+  renderCalendarView(document.getElementById('schedule-view-content')); 
+};
+
+window.nextMonth = async function() { 
+  calendarState.month++; 
+  if(calendarState.month > 11){ calendarState.month = 0; calendarState.year++; } 
+  await DB.loadState(); 
+  renderCalendarView(document.getElementById('schedule-view-content')); 
 };
 
 /* ── Calendar View ── */
@@ -75,28 +106,53 @@ function renderCalendarView(container) {
   });
 
   const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  let calHTML = `<div class="content-card"><div class="calendar-wrap">
-    <div class="calendar-nav">
-      <button class="cal-nav-btn" onclick="prevMonth()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
-      <h3 class="cal-month-title">${monthNames[month]} ${year}</h3>
-      <button class="cal-nav-btn" onclick="nextMonth()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+  let calHTML = `<div class="content-card"><div class="calendar-wrap" style="padding:var(--space-6);">
+    <div class="calendar-nav" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-6);">
+      <div style="display:flex;align-items:center;gap:var(--space-3)">
+        <button class="cal-nav-btn" onclick="prevMonth()" title="Previous Month"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <button class="btn btn-secondary btn-sm" onclick="goToToday()">${window.t?window.t('Today'):'Today'}</button>
+        <button class="cal-nav-btn" onclick="nextMonth()" title="Next Month"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+      </div>
+      <h3 class="cal-month-title" style="font-size:24px;font-weight:800;color:var(--text-primary);">${monthNames[month]} ${year}</h3>
+      <div style="width:120px;"></div>
     </div>
-    <div class="calendar-grid">
-      ${dayNames.map(d => `<div class="cal-day-header">${d}</div>`).join('')}`;
+    <div class="calendar-grid" style="display:grid;grid-template-columns:repeat(7, 1fr);gap:6px;">
+      ${dayNames.map(d => `<div class="cal-day-header" style="text-align:center;font-weight:700;padding-bottom:10px;color:var(--text-secondary);">${d}</div>`).join('')}`;
 
   // Empty cells before month start
   for (let i = 0; i < firstDay; i++) {
-    calHTML += `<div class="cal-day other-month"></div>`;
+    calHTML += `<div class="cal-day other-month" style="min-height:100px;background:rgba(255,255,255,0.02);border:1px solid transparent;"></div>`;
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
     const daySessionsArr = byDate[dateStr] || [];
-    calHTML += `<div class="cal-day${isToday ? ' today' : ''}" onclick="openDayModal('${dateStr}')">
-      <span class="cal-day-num">${d}</span>
-      ${daySessionsArr.slice(0,3).map(s => `<div class="cal-event ${s.color}">${s.time} ${s.courseType}</div>`).join('')}
-      ${daySessionsArr.length > 3 ? `<div style="font-size:9px;color:var(--text-muted);padding:1px 3px">+${daySessionsArr.length-3} more</div>` : ''}
+    
+    // Sort sessions by time within the day
+    daySessionsArr.sort((a,b) => a.time.localeCompare(b.time));
+    
+    calHTML += `<div class="cal-day${isToday ? ' today' : ''}" onclick="openDayModal('${dateStr}')" style="min-height:110px;padding:6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:rgba(255,255,255,0.01);cursor:pointer;transition:all 0.2s;">
+      <span class="cal-day-num" style="display:inline-block;margin-bottom:6px;font-weight:${isToday ? '800' : '600'};color:${isToday ? 'var(--gold-300)' : 'var(--text-secondary)'};">${d}</span>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+      ${daySessionsArr.slice(0, 4).map(s => {
+        const teacher = DB.getTeacher(s.teacherId);
+        const tName = teacher ? teacher.name.split(' ')[0] : 'TBA';
+        const colorClass = UI.fmt.courseColor(s.courseType);
+        
+        // Define colors based on course Type
+        let bgStyle = 'rgba(255,255,255,0.1)';
+        let textColor = '#fff';
+        if (s.courseType.toLowerCase() === 'quran') { bgStyle = 'rgba(46,204,113,0.2)'; textColor = '#2ECC71'; }
+        if (s.courseType.toLowerCase() === 'arabic') { bgStyle = 'rgba(201,168,76,0.2)'; textColor = 'var(--gold-300)'; }
+        if (s.courseType.toLowerCase() === 'fiqh') { bgStyle = 'rgba(155,89,182,0.2)'; textColor = '#BB8FCE'; }
+
+        return `<div class="cal-event" style="background:${bgStyle};color:${textColor};padding:3px 6px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="event.stopPropagation(); viewSessionModal('${s.id}')" title="${UI.fmt.time(s.time)} - ${tName}">
+          ${UI.fmt.time(s.time)} ${tName}
+        </div>`;
+      }).join('')}
+      ${daySessionsArr.length > 4 ? `<div style="font-size:10px;color:var(--text-muted);text-align:center;font-weight:600;margin-top:2px;">+${daySessionsArr.length-4} more</div>` : ''}
+      </div>
     </div>`;
   }
 
@@ -107,8 +163,8 @@ function renderCalendarView(container) {
 /* ── List View ── */
 function renderListView(container) {
   const allSessions = DB.getSessions();
-  const upcoming = allSessions.filter(s => s.status === 'upcoming').slice(0, 30);
-  const past     = allSessions.filter(s => s.status === 'completed').slice(-20);
+  const upcoming = allSessions.filter(s => s.status === 'upcoming');
+  const past     = allSessions.filter(s => s.status === 'completed');
 
   container.innerHTML = `
     <div class="tab-bar">
@@ -121,10 +177,11 @@ function renderListView(container) {
   renderSessionTab('upcoming', upcoming);
 }
 
-window.switchSessionTab = function(tab) {
+window.switchSessionTab = async function(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`tab-${tab}`)?.classList.add('active');
-  const sessions = DB.getSessions({ status: tab === 'upcoming' ? 'upcoming' : 'completed' }).slice(tab === 'upcoming' ? 0 : -30);
+  await DB.loadState();
+  const sessions = DB.getSessions({ status: tab === 'upcoming' ? 'upcoming' : 'completed' });
   renderSessionTab(tab, sessions);
 };
 
@@ -135,42 +192,52 @@ function renderSessionTab(tab, sessions) {
     content.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📅</div><p class="empty-state-title">${window.t?window.t('No sessions'):'No sessions'}</p></div>`;
     return;
   }
-  content.innerHTML = `<div class="content-card"><div class="card-body-flush">
-    <div class="table-wrapper">
-      <table class="data-table">
-        <thead><tr><th>${window.t?window.t('Date'):'Date'}</th><th>${window.t?window.t('Time'):'Time'}</th><th>${window.t?window.t('Course'):'Course'}</th><th>${window.t?window.t('Teacher'):'Teacher'}</th><th>${window.t?window.t('Students'):'Students'}</th><th>${window.t?window.t('Duration'):'Duration'}</th><th>${window.t?window.t('Recurrence'):'Recurrence'}</th><th>${window.t?window.t('Status'):'Status'}</th><th>${window.t?window.t('Actions'):'Actions'}</th></tr></thead>
-        <tbody>
-          ${sessions.map(s => {
-            const teacher = DB.getTeacher(s.teacherId);
-            const [ss, ts] = UI.fmt.sessionStatus(s.status);
-            return `<tr>
-              <td style="font-weight:600">${UI.fmt.dateShort(s.date)}</td>
-              <td style="color:var(--gold-300);font-weight:600">${UI.fmt.time(s.time)}</td>
-              <td><span class="badge badge-${UI.fmt.courseColor(s.courseType)}">${window.t?window.t(s.courseType):s.courseType}</span></td>
-              <td style="font-size:var(--text-sm)">${teacher ? teacher.name.replace('Ustadh ','').replace('Ustadha ','') : '—'}</td>
-              <td><span class="badge badge-gray">${s.studentIds.length} ${window.t?window.t('student(s)'):'student(s)'}</span></td>
-              <td style="color:var(--text-muted)">${s.duration}m</td>
-              <td style="color:var(--text-secondary);font-size:var(--text-xs)">${window.t?window.t(UI.fmt.recurrence(s.recurrence)):UI.fmt.recurrence(s.recurrence)}</td>
-              <td>${UI.badge(window.t?window.t(ss):ss, ts)}</td>
-              <td>
-                <div style="display:flex;gap:4px">
-                  <button class="btn btn-ghost btn-sm btn-icon" title="${window.t?window.t('View'):'View'}" onclick="viewSessionModal('${s.id}')">👁</button>
-                  ${s.status === 'upcoming' ? `
-                  <button class="btn btn-ghost btn-sm btn-icon" title="${window.t?window.t('Mark Done'):'Mark Done'}" style="color:var(--success)" onclick="completeSession('${s.id}')">✔</button>
-                  <button class="btn btn-ghost btn-sm btn-icon" title="${window.t?window.t('Edit'):'Edit'}" onclick="openEditSessionModal('${s.id}')">✎</button>
-                  <button class="btn btn-ghost btn-sm btn-icon" title="${window.t?window.t('Cancel'):'Cancel'}" style="color:var(--danger)" onclick="cancelSession('${s.id}')">✕</button>` : ''}
-                </div>
-              </td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  </div></div>`;
-}
+  
+  // Group by date
+  const byDate = {};
+  sessions.forEach(s => {
+    if (!byDate[s.date]) byDate[s.date] = [];
+    byDate[s.date].push(s);
+  });
+  
+  const dates = Object.keys(byDate).sort((a,b) => tab === 'upcoming' ? a.localeCompare(b) : b.localeCompare(a));
+  
+  let html = `<div class="session-list">`;
+  dates.forEach(d => {
+    html += `
+      <div style="margin-top:var(--space-5); margin-bottom:var(--space-3); font-weight:800; font-size:16px; color:var(--text-primary); border-bottom:1px solid var(--border); padding-bottom:6px;">
+        ${UI.fmt.date(d)}
+      </div>
+    `;
+    
+    // Sort chronologically within the day
+    byDate[d].sort((a,b) => a.time.localeCompare(b.time));
 
-window.prevMonth = function() { calendarState.month--; if(calendarState.month<0){calendarState.month=11;calendarState.year--;} renderCalendarView(document.getElementById('schedule-view-content')); };
-window.nextMonth = function() { calendarState.month++; if(calendarState.month>11){calendarState.month=0;calendarState.year++;} renderCalendarView(document.getElementById('schedule-view-content')); };
+    byDate[d].forEach(s => {
+      const teacher = DB.getTeacher(s.teacherId);
+      const [ss, ts] = UI.fmt.sessionStatus(s.status);
+      html += `
+        <div class="session-card" style="cursor:pointer; margin-bottom:8px;" onclick="viewSessionModal('${s.id}')">
+          <div class="session-time-block"><div class="session-time">${UI.fmt.time(s.time)}</div><div class="session-duration">${s.duration}m</div></div>
+          <div class="session-divider"></div>
+          <div class="session-info">
+            <div class="session-title">${s.courseType} <span style="font-weight:normal;color:var(--text-muted);font-size:12px;">with</span> ${teacher ? teacher.name : '—'}</div>
+            <div class="session-meta">${s.studentIds.length} student(s) · ${window.t?window.t(UI.fmt.recurrence(s.recurrence)):UI.fmt.recurrence(s.recurrence)}</div>
+          </div>
+          <span class="badge badge-${UI.fmt.courseColor(s.courseType)}">${window.t?window.t(s.courseType):s.courseType}</span>
+          ${tab === 'upcoming' ? `
+          <div class="session-actions" style="margin-left:var(--space-4)">
+            <button class="btn btn-ghost btn-sm btn-icon" title="${window.t?window.t('Mark Done'):'Mark Done'}" style="color:var(--success)" onclick="event.stopPropagation(); completeSession('${s.id}')">✔</button>
+            <button class="btn btn-ghost btn-sm btn-icon" title="${window.t?window.t('Edit'):'Edit'}" onclick="event.stopPropagation(); openEditSessionModal('${s.id}')">✎</button>
+            <button class="btn btn-ghost btn-sm btn-icon" title="${window.t?window.t('Cancel'):'Cancel'}" style="color:var(--danger)" onclick="event.stopPropagation(); cancelSession('${s.id}')">✕</button>
+          </div>` : ''}
+        </div>
+      `;
+    });
+  });
+  html += `</div>`;
+  content.innerHTML = html;
+}
 
 window.openDayModal = function(dateStr) {
   const sessions = DB.getSessions({ date: dateStr });
@@ -202,20 +269,21 @@ window.viewSessionModal = function(id) {
   const teacher = DB.getTeacher(s.teacherId);
   const students = s.studentIds.map(sid => DB.getStudent(sid)).filter(Boolean);
   UI.openModal('Session Details', `
-    <div class="info-row"><span class="info-row-label">${window.t?window.t('Course'):'Course'}</span><span class="info-row-value"><span class="badge badge-${UI.fmt.courseColor(s.courseType)}">${window.t?window.t(s.courseType):s.courseType}</span></span></div>
-    <div class="info-row"><span class="info-row-label">${window.t?window.t('Date'):'Date'}</span><span class="info-row-value" style="font-weight:700">${UI.fmt.date(s.date)}</span></div>
-    <div class="info-row"><span class="info-row-label">${window.t?window.t('Time'):'Time'}</span><span class="info-row-value" style="color:var(--gold-300);font-weight:700">${UI.fmt.time(s.time)} (${s.duration} min)</span></div>
-    <div class="info-row"><span class="info-row-label">${window.t?window.t('Teacher'):'Teacher'}</span><span class="info-row-value">${teacher ? teacher.name : '—'}</span></div>
-    <div class="info-row"><span class="info-row-label">${window.t?window.t('Students'):'Students'}</span><span class="info-row-value">${students.map(st => `<span class="badge badge-gray" style="margin:1px">${st.name}</span>`).join(' ')}</span></div>
-    <div class="info-row"><span class="info-row-label">${window.t?window.t('Recurrence'):'Recurrence'}</span><span class="info-row-value">${window.t?window.t(UI.fmt.recurrence(s.recurrence)):UI.fmt.recurrence(s.recurrence)}</span></div>
+    <div style="margin-bottom:var(--space-4);text-align:center;">
+      <span class="badge badge-${UI.fmt.courseColor(s.courseType)}" style="font-size:16px;padding:6px 16px;">${window.t?window.t(s.courseType):s.courseType} Session</span>
+    </div>
+    <div class="info-row"><span class="info-row-label">${window.t?window.t('Date'):'Date'}</span><span class="info-row-value" style="font-weight:700;font-size:15px;">${UI.fmt.date(s.date)}</span></div>
+    <div class="info-row"><span class="info-row-label">${window.t?window.t('Time'):'Time'}</span><span class="info-row-value" style="color:var(--gold-300);font-weight:700;font-size:15px;">${UI.fmt.time(s.time)} (${s.duration} min)</span></div>
+    <div class="info-row"><span class="info-row-label">${window.t?window.t('Teacher'):'Teacher'}</span><span class="info-row-value" style="font-weight:600;">${teacher ? teacher.name : '—'}</span></div>
+    <div class="info-row"><span class="info-row-label">${window.t?window.t('Students'):'Students'}</span><span class="info-row-value">${students.map(st => `<span class="badge badge-gray" style="margin:2px 2px;display:inline-block;">${st.name}</span>`).join(' ')}</span></div>
     <div class="info-row"><span class="info-row-label">${window.t?window.t('Status'):'Status'}</span><span class="info-row-value">${UI.badge(window.t?window.t(UI.fmt.sessionStatus(s.status)[0]):UI.fmt.sessionStatus(s.status)[0], UI.fmt.sessionStatus(s.status)[1])}</span></div>
     <div class="info-row"><span class="info-row-label">${window.t?window.t('Zoom Link'):'Zoom Link'}</span><span class="info-row-value"><a href="${s.zoomLink}" target="_blank" class="zoom-badge">🎥 ${window.t?window.t('Join Meeting'):'Join Meeting'}</a></span></div>
     ${s.notes ? `<div class="info-row"><span class="info-row-label">${window.t?window.t('Notes'):'Notes'}</span><span class="info-row-value" style="color:var(--text-secondary)">${s.notes}</span></div>` : ''}
     
-    <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:15px">
-      <button class="btn btn-secondary" style="${s.status === 'cancelled' ? 'border:1px solid var(--danger);background:rgba(231,76,60,0.1)' : ''}" onclick="updateSessionStatusDirect('${s.id}', 'cancelled')">${window.t?window.t('Cancel'):'Cancel'} / كنسلة</button>
-      <button class="btn btn-secondary" style="${s.status === 'postponed' ? 'border:1px solid var(--warning);background:rgba(241,196,15,0.1)' : ''}" onclick="updateSessionStatusDirect('${s.id}', 'postponed')">${window.t?window.t('Postpone'):'Postpone'} / تأجيل</button>
-      <button class="btn btn-primary" style="${s.status === 'completed' ? 'border:1px solid #fff' : ''}" onclick="UI.closeModal(); setTimeout(() => updateSessionStatusDirect('${s.id}', 'completed'), 100)">${window.t?window.t('Mark Done'):'Mark Done'} / تمت</button>
+    <div style="margin-top:24px;display:flex;gap:12px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:16px">
+      <button class="btn btn-secondary" style="${s.status === 'cancelled' ? 'border:1px solid var(--danger);background:rgba(231,76,60,0.1)' : ''}" onclick="updateSessionStatusDirect('${s.id}', 'cancelled')">${window.t?window.t('Cancel'):'Cancel'}</button>
+      <button class="btn btn-secondary" onclick="UI.closeModal(); setTimeout(() => openEditSessionModal('${s.id}'), 100)">${window.t?window.t('Edit'):'Edit'}</button>
+      <button class="btn btn-primary" style="${s.status === 'completed' ? 'border:1px solid #fff' : ''}" onclick="UI.closeModal(); setTimeout(() => updateSessionStatusDirect('${s.id}', 'completed'), 100)">${window.t?window.t('Mark Done'):'Mark Done'}</button>
     </div>
   `);
 };
@@ -238,6 +306,7 @@ window.updateSessionStatusDirect = async function(id, status) {
            setTimeout(() => switchSessionTab('upcoming'), 50);
         }
       } else {
+        await DB.loadState();
         renderCalendarView(content);
       }
     }
@@ -252,23 +321,29 @@ window.cancelSession = function(id) {
   UI.confirm(`Cancel this ${s.courseType} session on ${UI.fmt.date(s.date)}?`, async () => {
     await DB.updateSession(id, { status: 'cancelled' });
     UI.toast('Session cancelled.', 'warning');
-    switchSessionTab('upcoming');
+    const content = document.getElementById('schedule-view-content');
+    if (document.querySelector('.tab-bar')) {
+      switchSessionTab('upcoming');
+    } else if (content) {
+      await DB.loadState();
+      renderCalendarView(content);
+    }
   });
 };
 
 window.completeSession = async function(id) {
   try {
-    // Show instant feedback
     UI.toast(window.t ? window.t('Updating session...') : 'Updating session...', 'info', 1000);
     await DB.updateSession(id, { status: 'completed' });
     UI.toast(window.t ? window.t('Session marked as completed.') : 'Session marked as completed.', 'success');
     
-    // Completely re-render the view so tab counts update
     const content = document.getElementById('schedule-view-content');
-    if (content) {
+    if (document.querySelector('.tab-bar')) {
       renderListView(content);
-      // Auto switch to past tab to show the result
       setTimeout(() => switchSessionTab('past'), 50);
+    } else if (content) {
+      await DB.loadState();
+      renderCalendarView(content);
     }
   } catch (e) {
     console.error(e);
@@ -343,7 +418,6 @@ window.openNewSessionModal = function(preDate = '') {
     </div>
   `, true);
   
-  // init custom picker
   window._modalSelectedStudents = new Set();
   setTimeout(() => filterSessionStudents(''), 50);
 };
@@ -419,9 +493,14 @@ window.saveNewSession = async function() {
   UI.toast(`Session created! Zoom link generated automatically.`, 'success');
   DB.addNotification({ title: 'New Session Created', body: `${courseType} session on ${UI.fmt.date(date)} has been created.`, type: 'session' });
   UI.renderNotifications();
-  // Refresh calendar
+  
   const content = document.getElementById('schedule-view-content');
-  if (content) renderCalendarView(content);
+  if (document.querySelector('.tab-bar')) {
+    switchSessionTab('upcoming');
+  } else if (content) {
+    await DB.loadState();
+    renderCalendarView(content);
+  }
 };
 
 window.openEditSessionModal = function(id) {
@@ -479,10 +558,12 @@ window.saveEditSession = async function(id) {
   await DB.updateSession(id, { courseType, teacherId, date, time, duration, color: UI.fmt.courseColor(courseType) });
   UI.closeModal();
   UI.toast(window.t?window.t('Session updated successfully!'):'Session updated successfully!', 'success');
-  const viewCal = document.getElementById('view-cal-btn');
-  if(viewCal && viewCal.className.includes('btn-primary')) {
-    renderCalendarView(document.getElementById('schedule-view-content'));
-  } else {
+  
+  const content = document.getElementById('schedule-view-content');
+  if (document.querySelector('.tab-bar')) {
     switchSessionTab('upcoming');
+  } else if (content) {
+    await DB.loadState();
+    renderCalendarView(content);
   }
 };
