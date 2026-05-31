@@ -1,5 +1,6 @@
 /* ================================================
    ADMIN SCHEDULE PAGE — Full Calendar + Session Management
+   + Smart Recurring Schedule System
    ================================================ */
 let calendarState = {
   year: new Date().getFullYear(),
@@ -7,7 +8,6 @@ let calendarState = {
 };
 
 Router.register('admin-schedule', async function(container) {
-  // Show loading state first, then load real-time
   container.innerHTML = `<div class="empty-state">Loading schedule...</div>`;
   await DB.loadState();
   renderSchedulePage(container);
@@ -23,9 +23,9 @@ function renderSchedulePage(container) {
       <div style="display:flex;gap:var(--space-3)">
         <button class="btn btn-secondary" id="view-list-btn" onclick="switchScheduleView('list')">📋 ${window.t?window.t('List View'):'List View'}</button>
         <button class="btn btn-primary" id="view-cal-btn" onclick="switchScheduleView('calendar')">📅 ${window.t?window.t('Calendar View'):'Calendar View'}</button>
-        <button class="btn btn-primary" onclick="openNewSessionModal()">
+        <button class="btn btn-primary" onclick="openSetScheduleModal()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          ${window.t?window.t('New Session'):'New Session'}
+          ${window.t?window.t('Set Schedule'):'Set Schedule'}
         </button>
       </div>
     </div>
@@ -35,12 +35,12 @@ function renderSchedulePage(container) {
       <div class="legend-item"><div class="legend-dot" style="background:#2ECC71"></div><span class="legend-text">Quran</span></div>
       <div class="legend-item"><div class="legend-dot" style="background:var(--gold-300)"></div><span class="legend-text">Arabic</span></div>
       <div class="legend-item"><div class="legend-dot" style="background:#BB8FCE"></div><span class="legend-text">Fiqh</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#aaa;font-size:10px;display:flex;align-items:center;justify-content:center;color:#fff;border-radius:50%;">🔄</div><span class="legend-text">Recurring</span></div>
     </div>
 
     <div id="schedule-view-content"></div>
   `;
 
-  // Start with calendar view by default
   switchScheduleView('calendar');
 }
 
@@ -50,7 +50,7 @@ window.switchScheduleView = async function(view) {
   const calBtn  = document.getElementById('view-cal-btn');
   if (!content) return;
 
-  await DB.loadState(); // Ensure real-time load before rendering
+  await DB.loadState();
 
   if (view === 'calendar') {
     if (calBtn)  calBtn.className  = 'btn btn-primary';
@@ -68,24 +68,21 @@ window.goToToday = async function() {
   calendarState.year = d.getFullYear();
   calendarState.month = d.getMonth();
   const content = document.getElementById('schedule-view-content');
-  if (content) {
-    await DB.loadState();
-    renderCalendarView(content);
-  }
+  if (content) { await DB.loadState(); renderCalendarView(content); }
 };
 
-window.prevMonth = async function() { 
-  calendarState.month--; 
-  if(calendarState.month < 0){ calendarState.month = 11; calendarState.year--; } 
-  await DB.loadState(); 
-  renderCalendarView(document.getElementById('schedule-view-content')); 
+window.prevMonth = async function() {
+  calendarState.month--;
+  if(calendarState.month < 0){ calendarState.month = 11; calendarState.year--; }
+  await DB.loadState();
+  renderCalendarView(document.getElementById('schedule-view-content'));
 };
 
-window.nextMonth = async function() { 
-  calendarState.month++; 
-  if(calendarState.month > 11){ calendarState.month = 0; calendarState.year++; } 
-  await DB.loadState(); 
-  renderCalendarView(document.getElementById('schedule-view-content')); 
+window.nextMonth = async function() {
+  calendarState.month++;
+  if(calendarState.month > 11){ calendarState.month = 0; calendarState.year++; }
+  await DB.loadState();
+  renderCalendarView(document.getElementById('schedule-view-content'));
 };
 
 /* ── Calendar View ── */
@@ -98,7 +95,6 @@ function renderCalendarView(container) {
   const monthSessions = DB.getSessions({ month: `${year}-${String(month+1).padStart(2,'0')}` });
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-  // Group sessions by date
   const byDate = {};
   monthSessions.forEach(s => {
     if (!byDate[s.date]) byDate[s.date] = [];
@@ -123,7 +119,6 @@ function renderCalendarView(container) {
         ${dayNames.map(d => `<div class="cal-day-header" style="background:#fff;text-align:center;font-weight:500;font-size:11px;color:#70757a;padding:10px 0;">${d}</div>`).join('')}
 `;
 
-  // Empty cells before month start
   for (let i = 0; i < firstDay; i++) {
     calHTML += `<div class="cal-day other-month" style="background:#fff; min-height:120px;"></div>`;
   }
@@ -132,11 +127,9 @@ function renderCalendarView(container) {
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
     const daySessionsArr = byDate[dateStr] || [];
-    
-    // Sort sessions by time within the day
     daySessionsArr.sort((a,b) => a.time.localeCompare(b.time));
-    
-    let dayNumHTML = isToday 
+
+    let dayNumHTML = isToday
       ? `<div style="background:#1a73e8; color:#fff; border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; margin:4px auto; font-size:12px; font-weight:500;">${d}</div>`
       : `<div style="text-align:center; margin:4px 0; font-size:12px; font-weight:500; color:#3c4043; height:24px; display:flex; align-items:center; justify-content:center;">${d}</div>`;
 
@@ -146,15 +139,15 @@ function renderCalendarView(container) {
       ${daySessionsArr.slice(0, 3).map(s => {
         const teacher = DB.getTeacher(s.teacherId);
         const tName = teacher ? teacher.name.split(' ')[0] : 'TBA';
-        
-        // Define colors based on course Type (Google Calendar solid style)
-        let bgStyle = '#8e24aa'; // default purple
-        if (s.courseType.toLowerCase() === 'quran') { bgStyle = '#0b8043'; } // Green
-        if (s.courseType.toLowerCase() === 'arabic') { bgStyle = '#039be5'; } // Blue
-        if (s.courseType.toLowerCase() === 'fiqh') { bgStyle = '#f09300'; } // Orange
+        const isRecurring = !!s.schedule_id;
 
-        return `<div class="cal-event" style="background:${bgStyle};color:#fff;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="event.stopPropagation(); viewSessionModal('${s.id}')" title="${UI.fmt.time(s.time)} - ${tName}">
-          ${s.time.substring(0,5)} ${tName}
+        let bgStyle = '#8e24aa';
+        if (s.courseType && s.courseType.toLowerCase() === 'quran') { bgStyle = '#0b8043'; }
+        if (s.courseType && s.courseType.toLowerCase() === 'arabic') { bgStyle = '#039be5'; }
+        if (s.courseType && s.courseType.toLowerCase() === 'fiqh') { bgStyle = '#f09300'; }
+
+        return `<div class="cal-event" style="background:${bgStyle};color:#fff;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;display:flex;align-items:center;gap:3px;" onclick="event.stopPropagation(); viewSessionModal('${s.id}')" title="${UI.fmt.time(s.time)} - ${tName}">
+          ${isRecurring ? '<span title="Recurring">🔄</span>' : ''}${s.time.substring(0,5)} ${tName}
         </div>`;
       }).join('')}
       ${daySessionsArr.length > 3 ? `<div style="font-size:11px;color:#3c4043;font-weight:500;padding-left:4px;margin-top:2px;cursor:pointer;" onclick="event.stopPropagation(); openDayModal('${dateStr}')">+${daySessionsArr.length-3} more</div>` : ''}
@@ -169,7 +162,7 @@ function renderCalendarView(container) {
 /* ── List View ── */
 function renderListView(container) {
   const allSessions = DB.getSessions();
-  const upcoming = allSessions.filter(s => s.status === 'upcoming');
+  const upcoming = allSessions.filter(s => s.status === 'upcoming' || s.status === 'scheduled');
   const past     = allSessions.filter(s => s.status === 'completed');
 
   container.innerHTML = `
@@ -187,7 +180,7 @@ window.switchSessionTab = async function(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`tab-${tab}`)?.classList.add('active');
   await DB.loadState();
-  const sessions = DB.getSessions({ status: tab === 'upcoming' ? 'upcoming' : 'completed' });
+  const sessions = DB.getSessions({ status: tab === 'upcoming' ? ['upcoming','scheduled'] : 'completed' });
   renderSessionTab(tab, sessions);
 };
 
@@ -198,16 +191,15 @@ function renderSessionTab(tab, sessions) {
     content.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📅</div><p class="empty-state-title">${window.t?window.t('No sessions'):'No sessions'}</p></div>`;
     return;
   }
-  
-  // Group by date
+
   const byDate = {};
   sessions.forEach(s => {
     if (!byDate[s.date]) byDate[s.date] = [];
     byDate[s.date].push(s);
   });
-  
+
   const dates = Object.keys(byDate).sort((a,b) => tab === 'upcoming' ? a.localeCompare(b) : b.localeCompare(a));
-  
+
   let html = `<div class="session-list">`;
   dates.forEach(d => {
     html += `
@@ -215,26 +207,28 @@ function renderSessionTab(tab, sessions) {
         ${UI.fmt.date(d)}
       </div>
     `;
-    
-    // Sort chronologically within the day
+
     byDate[d].sort((a,b) => a.time.localeCompare(b.time));
 
     byDate[d].forEach(s => {
       const teacher = DB.getTeacher(s.teacherId);
       const [ss, ts] = UI.fmt.sessionStatus(s.status);
+      const isRecurring = !!s.schedule_id;
       html += `
         <div class="session-card" style="cursor:pointer; margin-bottom:8px;" onclick="viewSessionModal('${s.id}')">
           <div class="session-time-block"><div class="session-time">${UI.fmt.time(s.time)}</div><div class="session-duration">${s.duration}m</div></div>
           <div class="session-divider"></div>
           <div class="session-info">
-            <div class="session-title">${s.courseType} <span style="font-weight:normal;color:var(--text-muted);font-size:12px;">with</span> ${teacher ? teacher.name : '—'}</div>
-            <div class="session-meta">${s.studentIds.length} student(s) · ${window.t?window.t(UI.fmt.recurrence(s.recurrence)):UI.fmt.recurrence(s.recurrence)}</div>
+            <div class="session-title">
+              ${isRecurring ? '<span title="Recurring schedule" style="margin-right:4px;">🔄</span>' : ''}
+              ${s.courseType} <span style="font-weight:normal;color:var(--text-muted);font-size:12px;">with</span> ${teacher ? teacher.name : '—'}
+            </div>
+            <div class="session-meta">${s.studentIds.length} student(s)</div>
           </div>
           <span class="badge badge-${UI.fmt.courseColor(s.courseType)}">${window.t?window.t(s.courseType):s.courseType}</span>
           ${tab === 'upcoming' ? `
           <div class="session-actions" style="margin-left:var(--space-4)">
             <button class="btn btn-ghost btn-sm btn-icon" title="${window.t?window.t('Mark Done'):'Mark Done'}" style="color:var(--success)" onclick="event.stopPropagation(); completeSession('${s.id}')">✔</button>
-            <button class="btn btn-ghost btn-sm btn-icon" title="${window.t?window.t('Edit'):'Edit'}" onclick="event.stopPropagation(); openEditSessionModal('${s.id}')">✎</button>
             <button class="btn btn-ghost btn-sm btn-icon" title="${window.t?window.t('Cancel'):'Cancel'}" style="color:var(--danger)" onclick="event.stopPropagation(); cancelSession('${s.id}')">✕</button>
           </div>` : ''}
         </div>
@@ -250,17 +244,18 @@ window.openDayModal = function(dateStr) {
   const label = UI.fmt.date(dateStr);
   UI.openModal(`Sessions — ${label}`, `
     <div style="margin-bottom:var(--space-4)">
-      <button class="btn btn-primary btn-sm" onclick="UI.closeModal();openNewSessionModal('${dateStr}')">+ New Session This Day</button>
+      <button class="btn btn-primary btn-sm" onclick="UI.closeModal();openSetScheduleModal()">+ Set Student Schedule</button>
     </div>
     ${sessions.length === 0 ? '<div class="empty-state" style="padding:var(--space-8)"><div class="empty-state-icon">🌙</div><p class="empty-state-title">No sessions this day</p></div>' :
     `<div class="session-list">
       ${sessions.map(s => {
         const teacher = DB.getTeacher(s.teacherId);
+        const isRecurring = !!s.schedule_id;
         return `<div class="session-card" style="cursor:pointer" onclick="UI.closeModal(); setTimeout(() => viewSessionModal('${s.id}'), 100)">
           <div class="session-time-block"><div class="session-time">${UI.fmt.time(s.time)}</div><div class="session-duration">${s.duration}m</div></div>
           <div class="session-divider"></div>
           <div class="session-info">
-            <div class="session-title">${s.courseType}</div>
+            <div class="session-title">${isRecurring ? '🔄 ' : ''}${s.courseType}</div>
             <div class="session-meta">👨‍🏫 ${teacher ? teacher.name : '—'} · ${s.studentIds.length} student(s)</div>
           </div>
           <span class="badge badge-${UI.fmt.courseColor(s.courseType)}">${window.t?window.t(s.courseType):s.courseType}</span>
@@ -270,13 +265,20 @@ window.openDayModal = function(dateStr) {
   `);
 };
 
+/* ── View Session Modal ── */
 window.viewSessionModal = function(id) {
   const s = DB.getSession(id);
+  if (!s) return;
   const teacher = DB.getTeacher(s.teacherId);
-  const students = s.studentIds.map(sid => DB.getStudent(sid)).filter(Boolean);
+  const students = (s.studentIds || []).map(sid => DB.getStudent(sid)).filter(Boolean);
+  const isRecurring = !!s.schedule_id;
+  const today = new Date().toISOString().split('T')[0];
+  const isFuture = s.date > today;
+
   UI.openModal('Session Details', `
     <div style="margin-bottom:var(--space-4);text-align:center;">
       <span class="badge badge-${UI.fmt.courseColor(s.courseType)}" style="font-size:16px;padding:6px 16px;">${window.t?window.t(s.courseType):s.courseType} Session</span>
+      ${isRecurring ? `<span style="margin-left:8px;font-size:13px;color:var(--text-muted)">🔄 Part of recurring schedule</span>` : ''}
     </div>
     <div class="info-row"><span class="info-row-label">${window.t?window.t('Date'):'Date'}</span><span class="info-row-value" style="font-weight:700;font-size:15px;">${UI.fmt.date(s.date)}</span></div>
     <div class="info-row"><span class="info-row-label">${window.t?window.t('Time'):'Time'}</span><span class="info-row-value" style="color:var(--gold-300);font-weight:700;font-size:15px;">${UI.fmt.time(s.time)} (${s.duration} min)</span></div>
@@ -286,12 +288,22 @@ window.viewSessionModal = function(id) {
     <div class="info-row"><span class="info-row-label">${window.t?window.t('Zoom Link'):'Zoom Link'}</span><span class="info-row-value"><a href="${s.zoomLink}" target="_blank" class="zoom-badge">🎥 ${window.t?window.t('Join Meeting'):'Join Meeting'}</a></span></div>
     ${s.notes ? `<div class="info-row"><span class="info-row-label">${window.t?window.t('Notes'):'Notes'}</span><span class="info-row-value" style="color:var(--text-secondary)">${s.notes}</span></div>` : ''}
     
-    <div style="margin-top:24px;display:flex;gap:12px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:16px">
-      <button class="btn btn-secondary" style="${s.status === 'cancelled' ? 'border:1px solid var(--danger);background:rgba(231,76,60,0.1)' : ''}" onclick="updateSessionStatusDirect('${s.id}', 'cancelled')">${window.t?window.t('Cancel'):'Cancel'}</button>
-      <button class="btn btn-secondary" onclick="UI.closeModal(); setTimeout(() => openEditSessionModal('${s.id}'), 100)">${window.t?window.t('Edit'):'Edit'}</button>
+    <div style="margin-top:24px;display:flex;gap:12px;justify-content:flex-end;border-top:1px solid var(--border);padding-top:16px;flex-wrap:wrap;">
+      ${isRecurring && isFuture ? `<button class="btn btn-secondary" style="color:var(--danger);border-color:var(--danger)" onclick="UI.closeModal(); cancelAllFutureSessions('${s.schedule_id}', '${id}')">Cancel All Future</button>` : ''}
+      <button class="btn btn-secondary" style="${s.status === 'cancelled' ? 'border:1px solid var(--danger);background:rgba(231,76,60,0.1)' : ''}" onclick="updateSessionStatusDirect('${s.id}', 'cancelled')">Cancel This</button>
       <button class="btn btn-primary" style="${s.status === 'completed' ? 'border:1px solid #fff' : ''}" onclick="UI.closeModal(); setTimeout(() => updateSessionStatusDirect('${s.id}', 'completed'), 100)">${window.t?window.t('Mark Done'):'Mark Done'}</button>
     </div>
   `);
+};
+
+window.cancelAllFutureSessions = async function(scheduleId, currentSessionId) {
+  UI.confirm('Cancel ALL future sessions from this recurring schedule? Past sessions will be kept.', async () => {
+    UI.toast('Cancelling future sessions...', 'info', 1500);
+    await DB.cancelFutureSessionsBySchedule(scheduleId);
+    UI.toast('All future sessions cancelled.', 'warning');
+    const content = document.getElementById('schedule-view-content');
+    if (content) { await DB.loadState(); renderCalendarView(content); }
+  });
 };
 
 window.updateSessionStatusDirect = async function(id, status) {
@@ -299,27 +311,19 @@ window.updateSessionStatusDirect = async function(id, status) {
     UI.closeModal();
     UI.toast(window.t ? window.t('Updating session...') : 'Updating session...', 'info', 1000);
     await DB.updateSession(id, { status });
-    UI.toast(window.t ? window.t(`Session marked as ${status}.`) : `Session marked as ${status}.`, 'success');
-    
-    // Completely re-render the appropriate view
+    UI.toast(`Session marked as ${status}.`, 'success');
     const content = document.getElementById('schedule-view-content');
     if (content) {
       if (document.querySelector('.tab-bar')) {
         renderListView(content);
-        if (status === 'completed') {
-           setTimeout(() => switchSessionTab('past'), 50);
-        } else {
-           setTimeout(() => switchSessionTab('upcoming'), 50);
-        }
+        if (status === 'completed') setTimeout(() => switchSessionTab('past'), 50);
+        else setTimeout(() => switchSessionTab('upcoming'), 50);
       } else {
         await DB.loadState();
         renderCalendarView(content);
       }
     }
-  } catch (e) {
-    console.error(e);
-    UI.toast('Error updating session status', 'error');
-  }
+  } catch (e) { console.error(e); UI.toast('Error updating session status', 'error'); }
 };
 
 window.cancelSession = function(id) {
@@ -328,248 +332,370 @@ window.cancelSession = function(id) {
     await DB.updateSession(id, { status: 'cancelled' });
     UI.toast('Session cancelled.', 'warning');
     const content = document.getElementById('schedule-view-content');
-    if (document.querySelector('.tab-bar')) {
-      switchSessionTab('upcoming');
-    } else if (content) {
-      await DB.loadState();
-      renderCalendarView(content);
-    }
+    if (document.querySelector('.tab-bar')) switchSessionTab('upcoming');
+    else if (content) { await DB.loadState(); renderCalendarView(content); }
   });
 };
 
 window.completeSession = async function(id) {
   try {
-    UI.toast(window.t ? window.t('Updating session...') : 'Updating session...', 'info', 1000);
+    UI.toast('Updating session...', 'info', 1000);
     await DB.updateSession(id, { status: 'completed' });
-    UI.toast(window.t ? window.t('Session marked as completed.') : 'Session marked as completed.', 'success');
-    
+    UI.toast('Session marked as completed.', 'success');
     const content = document.getElementById('schedule-view-content');
     if (document.querySelector('.tab-bar')) {
       renderListView(content);
       setTimeout(() => switchSessionTab('past'), 50);
-    } else if (content) {
-      await DB.loadState();
-      renderCalendarView(content);
-    }
-  } catch (e) {
-    console.error(e);
-    UI.toast('Error updating session', 'error');
-  }
+    } else if (content) { await DB.loadState(); renderCalendarView(content); }
+  } catch (e) { console.error(e); UI.toast('Error updating session', 'error'); }
 };
 
-/* ── New Session Modal ── */
-window.openNewSessionModal = function(preDate = '') {
+/* ═══════════════════════════════════════════════════
+   SET STUDENT SCHEDULE MODAL — Core New Feature
+═══════════════════════════════════════════════════ */
+
+window.openSetScheduleModal = function(preloadStudentId = '') {
   const teachers = DB.getTeachers({ status: 'active' });
   const students = DB.getStudents({ status: 'active' });
-  UI.openModal('Create New Session', `
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Course Type <span class="form-required">*</span></label>
-        <select class="form-input-plain" id="ns-course">
-          <option value="Quran">📖 Quran</option>
-          <option value="Arabic">🔤 Arabic</option>
-          <option value="Fiqh">📚 Islamic Fiqh</option>
-        </select>
+
+  // Default start date = tomorrow
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const defaultStart = tomorrow.toISOString().split('T')[0];
+
+  UI.openModal('Set Student Schedule', `
+    <style>
+      .day-checkbox-grid { display:grid; grid-template-columns: repeat(7, 1fr); gap:6px; margin-top:6px; }
+      .day-chip { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px 4px; border-radius:8px; border:1.5px solid var(--border); cursor:pointer; transition:all 0.2s; font-size:11px; font-weight:600; user-select:none; background:transparent; color:var(--text-secondary); }
+      .day-chip:hover { border-color:var(--primary); color:var(--primary); background:rgba(255,255,255,0.05); }
+      .day-chip.selected { border-color:var(--primary); background:var(--primary); color:#fff; }
+      .day-chip input { display:none; }
+      .schedule-preview-box { margin-top:12px; padding:12px 16px; border-radius:8px; background:rgba(201,168,76,0.08); border:1px solid var(--border-gold); }
+      .schedule-preview-box .preview-title { font-weight:700; font-size:12px; color:var(--gold-300); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px; }
+      .preview-session-row { display:flex; align-items:center; gap:10px; padding:5px 0; border-bottom:1px solid rgba(201,168,76,0.1); font-size:13px; }
+      .preview-session-row:last-child { border-bottom:none; }
+      .conflict-warning { margin-top:8px; padding:10px 14px; border-radius:8px; background:rgba(231,76,60,0.1); border:1px solid rgba(231,76,60,0.3); color:#e74c3c; font-size:13px; font-weight:500; }
+    </style>
+
+    <!-- Student search -->
+    <div class="form-group">
+      <label class="form-label">Student <span class="form-required">*</span></label>
+      <div style="position:relative;">
+        <input type="text" class="form-input-plain" id="sch-student-search" placeholder="Search by name or STU-XXXX..." oninput="schedStudentSearch(this.value)" autocomplete="off" />
+        <div id="sch-student-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.3);"></div>
       </div>
+      <input type="hidden" id="sch-student-id" value="${preloadStudentId}" />
+    </div>
+
+    <div class="form-row">
       <div class="form-group">
         <label class="form-label">Teacher <span class="form-required">*</span></label>
-        <select class="form-input-plain" id="ns-teacher">
+        <select class="form-input-plain" id="sch-teacher" onchange="checkTeacherConflicts()">
           <option value="">Select teacher...</option>
-          ${teachers.map(t => `<option value="${t.id}">${t.name} (${t.specialization.join(', ')})</option>`).join('')}
+          ${teachers.map(t => `<option value="${t.id}">${t.name} (${(t.specialization||[]).join(', ')})</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Course Type <span class="form-required">*</span></label>
+        <select class="form-input-plain" id="sch-course">
+          <option value="Quran">📖 Quran</option>
+          <option value="Arabic">🔤 Arabic</option>
+          <option value="Fiqh">📚 Fiqh</option>
         </select>
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Date <span class="form-required">*</span></label>
-        <input type="date" class="form-input-plain" id="ns-date" value="${preDate || new Date().toISOString().split('T')[0]}" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Start Time <span class="form-required">*</span></label>
-        <input type="time" class="form-input-plain" id="ns-time" value="09:00" />
+
+    <!-- Days of week -->
+    <div class="form-group">
+      <label class="form-label">Days of Week <span class="form-required">*</span></label>
+      <div class="day-checkbox-grid" id="sch-days-grid">
+        ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(day => `
+          <div class="day-chip" id="chip-${day}" onclick="toggleDayChip('${day}')">
+            <input type="checkbox" id="day-${day}" value="${day}" onchange="updateSchedulePreview()">
+            <span>${day.substring(0,3)}</span>
+          </div>
+        `).join('')}
       </div>
     </div>
+
     <div class="form-row">
       <div class="form-group">
+        <label class="form-label">Session Time <span class="form-required">*</span></label>
+        <input type="time" class="form-input-plain" id="sch-time" value="09:00" oninput="checkTeacherConflicts()" />
+      </div>
+      <div class="form-group">
         <label class="form-label">Duration</label>
-        <select class="form-input-plain" id="ns-duration">
+        <select class="form-input-plain" id="sch-duration">
           <option value="30">30 minutes</option>
           <option value="45">45 minutes</option>
           <option value="60" selected>60 minutes</option>
         </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Recurrence</label>
-        <select class="form-input-plain" id="ns-recur">
-          <option value="once">One-time</option>
-          <option value="weekly" selected>Weekly</option>
-          <option value="biweekly">Bi-weekly</option>
-        </select>
-      </div>
     </div>
+
     <div class="form-group">
-      <label class="form-label">Students <span class="form-required">*</span></label>
-      <div id="ns-selected-tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:28px;"></div>
-      <input type="text" class="form-input-plain" id="ns-student-search" placeholder="Search by name or code (STU-XXXX)..." oninput="filterSessionStudents(this.value)">
-      <div id="ns-student-list" style="margin-top:8px;max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:rgba(0,0,0,0.2);padding:4px;">
-        <!-- realtime populated -->
-      </div>
+      <label class="form-label">Start Date <span class="form-required">*</span></label>
+      <input type="date" class="form-input-plain" id="sch-start" value="${defaultStart}" oninput="updateSchedulePreview()" />
     </div>
+
+    <!-- Conflict warning -->
+    <div id="sch-conflict-warning" style="display:none;" class="conflict-warning">
+      ⚠️ <span id="sch-conflict-text"></span>
+    </div>
+
+    <!-- Preview -->
+    <div id="sch-preview-box" class="schedule-preview-box" style="display:none;">
+      <div class="preview-title">📅 Next Sessions Preview</div>
+      <div id="sch-preview-sessions"></div>
+    </div>
+
     <div class="form-actions">
       <button class="btn btn-secondary" onclick="UI.closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveNewSession()">
+      <button class="btn btn-primary" id="sch-save-btn" onclick="saveStudentSchedule()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-        Create Session
+        Save Schedule &amp; Generate Sessions
       </button>
     </div>
   `, true);
-  
-  window._modalSelectedStudents = new Set();
-  setTimeout(() => filterSessionStudents(''), 50);
-};
 
-window.filterSessionStudents = function(q) {
-  const query = q.toLowerCase();
-  const allStudents = DB.getStudents({ status: 'active' });
-  const filtered = allStudents.filter(s => s.name.toLowerCase().includes(query) || s.id.toLowerCase().includes(query));
-  const listEl = document.getElementById('ns-student-list');
-  if (!listEl) return;
-  if (!filtered.length) {
-    listEl.innerHTML = '<div style="padding:10px;color:var(--text-muted);text-align:center;font-size:12px;">No students found</div>';
-    return;
+  // If preloading a student, fill the name
+  if (preloadStudentId) {
+    const st = DB.getStudent(preloadStudentId);
+    if (st) {
+      const inp = document.getElementById('sch-student-search');
+      if (inp) inp.value = `${st.name} (${st.id})`;
+    }
+    // Load existing schedule if any
+    setTimeout(() => loadExistingScheduleIntoForm(preloadStudentId), 100);
   }
-  listEl.innerHTML = filtered.map(s => {
-    const family = DB.getFamily(s.familyId);
-    const isChecked = window._modalSelectedStudents.has(s.id);
-    return `
-      <label class="student-picker-row" style="display:flex;align-items:center;padding:8px;gap:10px;cursor:pointer;border-bottom:1px solid var(--border-light);border-radius:4px;transition:background 0.2s;" onmouseenter="this.style.background='rgba(255,255,255,0.05)'" onmouseleave="this.style.background='transparent'">
-        <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleSessionStudent('${s.id}')" style="width:16px;height:16px;">
-        <div style="flex:1;">
-          <div style="font-weight:600;font-size:13px;">${s.name} <code style="color:var(--gold-300);font-size:11px;margin-left:4px;">${s.id}</code></div>
-          <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">
-            ${s.courses.length ? s.courses.map(c=>window.t?window.t(c):c).join(', ') : 'No course'} • ${family ? family.name : 'Unknown Family'}
-          </div>
-        </div>
-      </label>
-    `;
-  }).join('');
+
+  window._schedSelectedStudentId = preloadStudentId || '';
 };
 
-window.toggleSessionStudent = function(id) {
-  if (window._modalSelectedStudents.has(id)) {
-    window._modalSelectedStudents.delete(id);
-  } else {
-    window._modalSelectedStudents.add(id);
-  }
-  renderSessionStudentTags();
-};
+window.loadExistingScheduleIntoForm = function(studentId) {
+  const sched = DB.getStudentSchedule(studentId);
+  if (!sched) return;
 
-window.renderSessionStudentTags = function() {
-  const container = document.getElementById('ns-selected-tags');
-  if (!container) return;
-  
-  let html = '';
-  window._modalSelectedStudents.forEach(id => {
-    const s = DB.getStudent(id);
-    if (!s) return;
-    html += `<div style="display:inline-flex;align-items:center;background:rgba(201,168,76,0.15);color:var(--gold-300);padding:4px 8px;border-radius:12px;font-size:12px;border:1px solid var(--border-gold);">
-      ${s.name}
-      <span style="margin-left:6px;cursor:pointer;font-weight:bold;font-size:14px;line-height:1;" onclick="toggleSessionStudent('${id}'); filterSessionStudents(document.getElementById('ns-student-search').value);">&times;</span>
-    </div>`;
+  // Fill teacher
+  const teacherSel = document.getElementById('sch-teacher');
+  if (teacherSel) teacherSel.value = sched.teacherId || '';
+
+  // Fill course
+  const courseSel = document.getElementById('sch-course');
+  if (courseSel) courseSel.value = sched.courseType || 'Quran';
+
+  // Fill days
+  (sched.daysOfWeek || []).forEach(day => {
+    const chip = document.getElementById(`chip-${day}`);
+    const chk = document.getElementById(`day-${day}`);
+    if (chip) chip.classList.add('selected');
+    if (chk) chk.checked = true;
   });
-  container.innerHTML = html;
+
+  // Fill time
+  const timeInp = document.getElementById('sch-time');
+  if (timeInp && sched.sessionTime) timeInp.value = sched.sessionTime.substring(0,5);
+
+  // Fill duration
+  const durSel = document.getElementById('sch-duration');
+  if (durSel) durSel.value = String(sched.durationMin || 60);
+
+  updateSchedulePreview();
 };
 
-window.saveNewSession = async function() {
-  const courseType  = document.getElementById('ns-course').value;
-  const teacherId   = document.getElementById('ns-teacher').value;
-  const date        = document.getElementById('ns-date').value;
-  const time        = document.getElementById('ns-time').value;
-  const duration    = parseInt(document.getElementById('ns-duration').value);
-  const recurrence  = document.getElementById('ns-recur').value;
-  const selStudents = Array.from(window._modalSelectedStudents);
+window.schedStudentSearch = function(q) {
+  const dropdown = document.getElementById('sch-student-dropdown');
+  if (!dropdown) return;
+  const query = q.toLowerCase();
+  if (!query) { dropdown.style.display = 'none'; return; }
 
-  if (!teacherId || !date || !time || !selStudents.length) {
-    UI.toast('Please fill in all required fields and select at least one student.', 'error');
+  const all = DB.getStudents({ status: 'active' });
+  const filtered = all.filter(s => s.name.toLowerCase().includes(query) || s.id.toLowerCase().includes(query));
+
+  if (!filtered.length) {
+    dropdown.innerHTML = `<div style="padding:12px;color:var(--text-muted);font-size:13px;">No students found</div>`;
+  } else {
+    dropdown.innerHTML = filtered.map(s => `
+      <div style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border-light);" 
+           onmouseenter="this.style.background='rgba(255,255,255,0.05)'" 
+           onmouseleave="this.style.background='transparent'"
+           onclick="selectScheduleStudent('${s.id}', '${s.name}')">
+        <strong>${s.name}</strong> <code style="color:var(--gold-300);font-size:11px;">${s.id}</code>
+      </div>
+    `).join('');
+  }
+  dropdown.style.display = 'block';
+};
+
+window.selectScheduleStudent = function(id, name) {
+  window._schedSelectedStudentId = id;
+  const inp = document.getElementById('sch-student-search');
+  const hiddenInp = document.getElementById('sch-student-id');
+  const dropdown = document.getElementById('sch-student-dropdown');
+  if (inp) inp.value = `${name} (${id})`;
+  if (hiddenInp) hiddenInp.value = id;
+  if (dropdown) dropdown.style.display = 'none';
+  // Load existing schedule if any
+  loadExistingScheduleIntoForm(id);
+  checkTeacherConflicts();
+};
+
+window.toggleDayChip = function(day) {
+  const chip = document.getElementById(`chip-${day}`);
+  const chk  = document.getElementById(`day-${day}`);
+  if (!chip || !chk) return;
+  chk.checked = !chk.checked;
+  chip.classList.toggle('selected', chk.checked);
+  updateSchedulePreview();
+  checkTeacherConflicts();
+};
+
+function getSelectedDays() {
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  return days.filter(day => {
+    const chk = document.getElementById(`day-${day}`);
+    return chk && chk.checked;
+  });
+}
+
+window.updateSchedulePreview = function() {
+  const previewBox   = document.getElementById('sch-preview-box');
+  const previewSess  = document.getElementById('sch-preview-sessions');
+  const startDateVal = document.getElementById('sch-start')?.value;
+
+  const selectedDays = getSelectedDays();
+
+  if (!previewBox || !previewSess || selectedDays.length === 0 || !startDateVal) {
+    if (previewBox) previewBox.style.display = 'none';
     return;
   }
 
-  const session = await DB.addSession({ courseType, teacherId, date, time, duration, recurrence, studentIds: selStudents, color: UI.fmt.courseColor(courseType) });
-  UI.closeModal();
-  UI.toast(`Session created! Zoom link generated automatically.`, 'success');
-  DB.addNotification({ title: 'New Session Created', body: `${courseType} session on ${UI.fmt.date(date)} has been created.`, type: 'session' });
-  UI.renderNotifications();
-  
-  const content = document.getElementById('schedule-view-content');
-  if (document.querySelector('.tab-bar')) {
-    switchSessionTab('upcoming');
-  } else if (content) {
-    await DB.loadState();
-    renderCalendarView(content);
+  const sessions = DB.previewScheduleSessions(selectedDays, startDateVal, 4);
+  if (!sessions.length) { previewBox.style.display = 'none'; return; }
+
+  previewBox.style.display = 'block';
+  previewSess.innerHTML = sessions.map(({ date, dayName }) => `
+    <div class="preview-session-row">
+      <span style="font-size:16px;">📅</span>
+      <span style="font-weight:600;">${dayName}</span>
+      <span style="color:var(--text-secondary);">${UI.fmt.date(date)}</span>
+    </div>
+  `).join('');
+};
+
+window.checkTeacherConflicts = function() {
+  const teacherId = document.getElementById('sch-teacher')?.value;
+  const timeVal   = document.getElementById('sch-time')?.value;
+  const warnBox   = document.getElementById('sch-conflict-warning');
+  const warnTxt   = document.getElementById('sch-conflict-text');
+  if (!warnBox || !warnTxt) return;
+
+  if (!teacherId || !timeVal) { warnBox.style.display = 'none'; return; }
+
+  const selectedDays = getSelectedDays();
+  if (!selectedDays.length) { warnBox.style.display = 'none'; return; }
+
+  const today = new Date().toISOString().split('T')[0];
+  const teacherSessions = DB.getSessions({ teacherId }).filter(s =>
+    (s.status === 'scheduled' || s.status === 'upcoming') && s.date >= today && s.time && s.time.substring(0,5) === timeVal.substring(0,5)
+  );
+
+  const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const conflicts = teacherSessions.filter(s => {
+    const d = new Date(s.date + 'T00:00:00');
+    return selectedDays.includes(DAY_NAMES[d.getDay()]);
+  });
+
+  if (conflicts.length > 0) {
+    const teacher = DB.getTeacher(teacherId);
+    warnTxt.textContent = `${teacher ? teacher.name : 'This teacher'} already has ${conflicts.length} session(s) at ${timeVal} on the selected day(s). Check the schedule before saving.`;
+    warnBox.style.display = 'block';
+  } else {
+    warnBox.style.display = 'none';
   }
 };
 
+window.saveStudentSchedule = async function() {
+  const studentId  = window._schedSelectedStudentId || document.getElementById('sch-student-id')?.value;
+  const teacherId  = document.getElementById('sch-teacher')?.value;
+  const courseType = document.getElementById('sch-course')?.value;
+  const sessionTime= document.getElementById('sch-time')?.value;
+  const durationMin= parseInt(document.getElementById('sch-duration')?.value || '60');
+  const startDate  = document.getElementById('sch-start')?.value;
+  const daysOfWeek = getSelectedDays();
+
+  if (!studentId) { UI.toast('Please select a student.', 'error'); return; }
+  if (!teacherId) { UI.toast('Please select a teacher.', 'error'); return; }
+  if (!daysOfWeek.length) { UI.toast('Please select at least one day of the week.', 'error'); return; }
+  if (!sessionTime) { UI.toast('Please select a session time.', 'error'); return; }
+  if (!startDate)   { UI.toast('Please select a start date.', 'error'); return; }
+
+  const saveBtn = document.getElementById('sch-save-btn');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Generating sessions...'; }
+
+  try {
+    await DB.saveStudentSchedule({ studentId, teacherId, courseType, daysOfWeek, sessionTime, durationMin, startDate });
+    UI.closeModal();
+
+    const student = DB.getStudent(studentId);
+    const teacher = DB.getTeacher(teacherId);
+    UI.toast(`Schedule saved! Sessions generated for ${student ? student.name : studentId}.`, 'success');
+    DB.addNotification({
+      title: 'Schedule Created',
+      body: `${courseType} schedule set for ${student ? student.name : studentId} with ${teacher ? teacher.name : teacherId} on ${daysOfWeek.join(', ')}.`,
+      type: 'schedule'
+    });
+    UI.renderNotifications?.();
+
+    const content = document.getElementById('schedule-view-content');
+    if (content) {
+      await DB.loadState();
+      if (document.querySelector('.tab-bar')) renderListView(content);
+      else renderCalendarView(content);
+    }
+  } catch(e) {
+    console.error(e);
+    UI.toast('Error saving schedule: ' + (e.message || 'Unknown error'), 'error');
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Schedule & Generate Sessions'; }
+  }
+};
+
+/* ── Legacy wrappers so old code paths still work ── */
+window.openNewSessionModal = window.openSetScheduleModal;
 window.openEditSessionModal = function(id) {
   const s = DB.getSession(id);
-  const teachers = DB.getTeachers({ status: 'active' });
-  UI.openModal(window.t?window.t('Edit Session'):'Edit Session', `
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">${window.t?window.t('Course Type'):'Course Type'}</label>
-        <select class="form-input-plain" id="ess-course">
-          <option value="Quran" ${s.courseType==='Quran'?'selected':''}>📖 ${window.t?window.t('Quran'):'Quran'}</option>
-          <option value="Arabic" ${s.courseType==='Arabic'?'selected':''}>🔤 ${window.t?window.t('Arabic'):'Arabic'}</option>
-          <option value="Fiqh" ${s.courseType==='Fiqh'?'selected':''}>📚 ${window.t?window.t('Fiqh'):'Fiqh'}</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">${window.t?window.t('Teacher'):'Teacher'}</label>
-        <select class="form-input-plain" id="ess-teacher">
-          ${teachers.map(t => `<option value="${t.id}" ${s.teacherId===t.id?'selected':''}>${t.name}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">${window.t?window.t('Date'):'Date'}</label>
-        <input type="date" class="form-input-plain" id="ess-date" value="${s.date}" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">${window.t?window.t('Start Time'):'Start Time'}</label>
-        <input type="time" class="form-input-plain" id="ess-time" value="${s.time}" />
-      </div>
-    </div>
+  if (s && s.schedule_id) {
+    // For recurring sessions, open the schedule editor
+    const students = (s.studentIds || []);
+    const studentId = students[0];
+    if (studentId) {
+      openSetScheduleModal(studentId);
+      return;
+    }
+  }
+  // Fallback: basic status edit
+  UI.openModal('Edit Session', `
     <div class="form-group">
-      <label class="form-label">${window.t?window.t('Duration'):'Duration'}</label>
-      <select class="form-input-plain" id="ess-duration">
-        <option value="30" ${s.duration===30?'selected':''}>30 ${window.t?window.t('minutes'):'minutes'}</option>
-        <option value="45" ${s.duration===45?'selected':''}>45 ${window.t?window.t('minutes'):'minutes'}</option>
-        <option value="60" ${s.duration===60?'selected':''}>60 ${window.t?window.t('minutes'):'minutes'}</option>
+      <label class="form-label">Status</label>
+      <select class="form-input-plain" id="ess-status">
+        <option value="upcoming" ${s && s.status==='upcoming'?'selected':''}>Upcoming</option>
+        <option value="scheduled" ${s && s.status==='scheduled'?'selected':''}>Scheduled</option>
+        <option value="completed" ${s && s.status==='completed'?'selected':''}>Completed</option>
+        <option value="cancelled" ${s && s.status==='cancelled'?'selected':''}>Cancelled</option>
       </select>
     </div>
     <div class="form-actions">
-      <button class="btn btn-secondary" onclick="UI.closeModal()">${window.t?window.t('Cancel'):'Cancel'}</button>
-      <button class="btn btn-primary" onclick="saveEditSession('${id}')">${window.t?window.t('Save Changes'):'Save Changes'}</button>
+      <button class="btn btn-secondary" onclick="UI.closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditSession('${id}')">Save</button>
     </div>
   `, true);
 };
 
 window.saveEditSession = async function(id) {
-  const courseType = document.getElementById('ess-course').value;
-  const teacherId  = document.getElementById('ess-teacher').value;
-  const date       = document.getElementById('ess-date').value;
-  const time       = document.getElementById('ess-time').value;
-  const duration   = parseInt(document.getElementById('ess-duration').value);
-
-  await DB.updateSession(id, { courseType, teacherId, date, time, duration, color: UI.fmt.courseColor(courseType) });
+  const status = document.getElementById('ess-status')?.value;
+  await DB.updateSession(id, { status });
   UI.closeModal();
-  UI.toast(window.t?window.t('Session updated successfully!'):'Session updated successfully!', 'success');
-  
+  UI.toast('Session updated.', 'success');
   const content = document.getElementById('schedule-view-content');
-  if (document.querySelector('.tab-bar')) {
-    switchSessionTab('upcoming');
-  } else if (content) {
-    await DB.loadState();
-    renderCalendarView(content);
-  }
+  if (content) { await DB.loadState(); renderCalendarView(content); }
 };

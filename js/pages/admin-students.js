@@ -286,6 +286,60 @@ window.viewStudentProfile = function(id) {
   const late     = attendance.filter(a => a.status === 'late').length;
   const attRate  = attendance.length ? Math.round((present / attendance.length) * 100) : 0;
 
+  // Schedule
+  const sched = DB.getStudentSchedule(id);
+  const logs  = DB.getScheduleChangeLogs(id);
+  const teacher = sched ? DB.getTeacher(sched.teacherId) : null;
+
+  function scheduleSection() {
+    if (!sched) {
+      return `
+        <div style="margin-top:var(--space-5);padding-top:var(--space-5);border-top:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-3)">
+            <div style="font-weight:700;font-size:15px;">📅 Weekly Schedule</div>
+            <button class="btn btn-primary btn-sm" onclick="UI.closeModal(); setTimeout(() => openSetScheduleModal('${id}'), 100)">Set Schedule</button>
+          </div>
+          <div style="color:var(--text-muted);font-size:13px;">No schedule set yet. Click "Set Schedule" to create a recurring weekly plan.</div>
+        </div>`;
+    }
+
+    const daysStr = (sched.daysOfWeek || []).join(' &amp; ');
+    const timeStr = sched.sessionTime ? sched.sessionTime.substring(0,5) : '';
+    const isPaused = sched.status === 'paused' || s.status === 'inactive';
+
+    const logsHtml = logs.length ? logs.slice(0,3).map(l => `
+      <div style="font-size:11px;color:var(--text-muted);padding:3px 0;border-bottom:1px solid var(--border-light);">
+        <span style="font-weight:600;color:var(--text-secondary);">${l.change_type?.toUpperCase()}</span>
+        ${l.changed_fields && l.changed_fields !== 'null' ? '· ' + l.changed_fields : ''}
+        <span style="float:right;">${new Date(l.changed_at).toLocaleDateString()}</span>
+      </div>`).join('') : '<div style="font-size:12px;color:var(--text-muted)">No changes logged yet.</div>';
+
+    return `
+      <div style="margin-top:var(--space-5);padding-top:var(--space-5);border-top:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4)">
+          <div style="font-weight:700;font-size:15px;">📅 Weekly Schedule</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-secondary btn-sm" onclick="UI.closeModal(); setTimeout(() => openSetScheduleModal('${id}'), 100)">✎ Edit Schedule</button>
+            ${isPaused
+              ? `<button class="btn btn-sm" style="background:rgba(46,204,113,0.15);color:#2ecc71;border:1px solid #2ecc71;" onclick="resumeStudentSchedule('${id}')">▶ Resume</button>`
+              : `<button class="btn btn-sm" style="background:rgba(231,76,60,0.1);color:#e74c3c;border:1px solid #e74c3c;" onclick="pauseStudentSchedule('${id}')">⏸ Pause</button>`
+            }
+          </div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:var(--space-3)">
+          ${isPaused ? '<div style="font-size:11px;font-weight:700;color:#e74c3c;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">⏸ PAUSED</div>' : '<div style="font-size:11px;font-weight:700;color:#2ecc71;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">● ACTIVE</div>'}
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Every ${daysStr} at ${timeStr}</div>
+          <div style="font-size:13px;color:var(--text-secondary);">${sched.durationMin} min · <span class="badge badge-${UI.fmt.courseColor(sched.courseType)}" style="font-size:11px;">${sched.courseType}</span> with ${teacher ? teacher.name : '—'}</div>
+        </div>
+
+        <details style="cursor:pointer;">
+          <summary style="font-size:12px;color:var(--text-muted);font-weight:600;padding:4px 0;">📋 Schedule Change History</summary>
+          <div style="margin-top:8px;">${logsHtml}</div>
+        </details>
+      </div>`;
+  }
+
   UI.openModal(`${s.name} — ${window.t?window.t('Profile'):'Profile'}`, `
     <div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-5);padding-bottom:var(--space-5);border-bottom:1px solid var(--border)">
       ${UI.avatar(s.name, 'avatar avatar-lg')}
@@ -309,6 +363,7 @@ window.viewStudentProfile = function(id) {
         <div class="att-summary-card"><div class="att-summary-value text-accent">${attRate}%</div><div class="att-summary-label">${window.t?window.t('Rate'):'Rate'}</div></div>
       </div>
     </div>
+    ${scheduleSection()}
   `, false);
 };
 
@@ -405,3 +460,25 @@ window.deleteStudentConfirm = function(id) {
     updateStudentTable();
   });
 };
+
+/* ── Pause / Resume from student profile ── */
+window.pauseStudentSchedule = async function(studentId) {
+  UI.confirm('Pause this student? All upcoming sessions will be cancelled automatically.', async () => {
+    UI.closeModal();
+    UI.toast('Pausing student and cancelling sessions...', 'info', 2000);
+    await DB.updateStudent(studentId, { status: 'inactive' });
+    UI.toast('Student paused. All future sessions cancelled.', 'warning');
+    updateStudentTable();
+  });
+};
+
+window.resumeStudentSchedule = async function(studentId) {
+  UI.confirm('Resume this student? Sessions will be automatically re-generated from tomorrow.', async () => {
+    UI.closeModal();
+    UI.toast('Resuming student and generating sessions...', 'info', 2000);
+    await DB.updateStudent(studentId, { status: 'active' });
+    UI.toast('Student resumed! Sessions re-generated for the next 4 weeks.', 'success');
+    updateStudentTable();
+  });
+};
+

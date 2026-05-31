@@ -52,7 +52,8 @@ CREATE TABLE public.sessions (
     status TEXT,
     zoom_link TEXT,
     notes TEXT,
-    color TEXT
+    color TEXT,
+    schedule_id UUID  -- set after student_schedules is created
 );
 
 CREATE TABLE public.session_students (
@@ -111,6 +112,32 @@ CREATE TABLE public.evaluations (
 );
 
 
+-- student_schedules — Recurring weekly schedule templates
+CREATE TABLE public.student_schedules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id TEXT REFERENCES public.students(id) ON DELETE CASCADE,
+    teacher_id TEXT REFERENCES public.teachers(id) ON DELETE SET NULL,
+    course_type TEXT NOT NULL,
+    days_of_week TEXT[] NOT NULL,
+    session_time TIME NOT NULL,
+    duration_min INT NOT NULL DEFAULT 60,
+    start_date DATE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- schedule_change_log — Audit trail for schedule modifications
+CREATE TABLE public.schedule_change_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    schedule_id UUID REFERENCES public.student_schedules(id) ON DELETE CASCADE,
+    student_id TEXT REFERENCES public.students(id) ON DELETE CASCADE,
+    change_type TEXT NOT NULL,
+    changed_fields TEXT,
+    changed_by TEXT,
+    changed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- 2. User Profiles (Linked to UI roles)
 -- Note: Authentication happens via Supabase Auth, but this stores their role mappings
 CREATE TABLE public.user_profiles (
@@ -138,6 +165,8 @@ ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.evaluations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.schedule_change_log ENABLE ROW LEVEL SECURITY;
 
 -- For this migration step, to match the frontend functionality without complex 
 -- auth token role injection and ensuring rapid deployment, we allow all authenticated users to read.
@@ -173,6 +202,9 @@ CREATE POLICY "Allow all update for authenticated users" ON public.user_profiles
 
 CREATE POLICY "Allow all select for authenticated users" ON public.evaluations FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow all update for authenticated users" ON public.evaluations FOR ALL USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Allow all for authenticated users on student_schedules" ON public.student_schedules FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow all for authenticated users on schedule_change_log" ON public.schedule_change_log FOR ALL USING (auth.role() = 'authenticated');
 
 -- ========================================================================================
 -- 4. Seed Data Function (Optional logic in JS side or SQL)

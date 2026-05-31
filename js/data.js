@@ -15,6 +15,8 @@ class AcademyDB {
       payments: [],
       notifications: [],
       evaluations: [],
+      studentSchedules: [],
+      scheduleChangeLogs: [],
     };
     this.isLoaded = false;
   }
@@ -23,7 +25,7 @@ class AcademyDB {
   async loadState() {
     if (!window.supabaseClient) return;
     
-    const [profRes, famRes, stuRes, tchrRes, sessRes, attRes, payRes, notifRes, evalRes] = await Promise.all([
+    const [profRes, famRes, stuRes, tchrRes, sessRes, attRes, payRes, notifRes, evalRes, schedRes, logRes] = await Promise.all([
       supabaseClient.from('user_profiles').select('*'),
       supabaseClient.from('families').select('*'),
       supabaseClient.from('students').select('*'),
@@ -32,7 +34,9 @@ class AcademyDB {
       supabaseClient.from('attendance').select('*'),
       supabaseClient.from('payments').select('*'),
       supabaseClient.from('notifications').select('*'),
-      supabaseClient.from('evaluations').select('*')
+      supabaseClient.from('evaluations').select('*'),
+      supabaseClient.from('student_schedules').select('*'),
+      supabaseClient.from('schedule_change_log').select('*'),
     ]);
 
     this._data.users = profRes.data || [];
@@ -54,6 +58,8 @@ class AcademyDB {
     this._data.payments = payRes.data || [];
     this._data.notifications = notifRes.data || [];
     this._data.evaluations = evalRes.data || [];
+    this._data.studentSchedules = schedRes.data || [];
+    this._data.scheduleChangeLogs = logRes.data || [];
     
     this.isLoaded = true;
   }
@@ -106,6 +112,7 @@ class AcademyDB {
   }
   
   async updateStudent(id, data) {
+    const previousStudent = this.getStudent(id);
     const dbPayload = { ...data };
     if (dbPayload.familyId) { dbPayload.family_id = dbPayload.familyId; delete dbPayload.familyId; }
     if (dbPayload.sessionRate !== undefined) delete dbPayload.sessionRate;
@@ -115,6 +122,35 @@ class AcademyDB {
     const { error } = await supabaseClient.from('students').update(dbPayload).eq('id', id);
     if (error) console.error("Error updating student:", error);
     
+    // Handle pause/resume schedule hooks based on status change
+    if (data.status && previousStudent && previousStudent.status !== data.status) {
+      if (data.status === 'inactive' || data.status === 'paused') {
+        // Cancel all future scheduled sessions
+        await this.cancelFutureSessionsForStudent(id, 'paused');
+        // Pause the schedule record
+        const sched = this.getStudentSchedule(id);
+        if (sched) {
+          await supabaseClient.from('student_schedules').update({ status: 'paused', updated_at: new Date().toISOString() }).eq('id', sched.id);
+          await this._logScheduleChange(sched.id, id, 'paused', null);
+        }
+      } else if (data.status === 'active') {
+        // Re-activate the schedule record and regenerate sessions
+        const sched = this.getStudentSchedule(id);
+        if (sched) {
+          await supabaseClient.from('student_schedules').update({ status: 'active', updated_at: new Date().toISOString() }).eq('id', sched.id);
+          await this.loadState();
+          const freshSched = this.getStudentSchedule(id);
+          if (freshSched) {
+            // Generate from next week's Monday so sessions start fresh
+            const startFrom = new Date();
+            startFrom.setDate(startFrom.getDate() + 1);
+            await this._generateAndInsertSessions(freshSched, startFrom);
+            await this._logScheduleChange(freshSched.id, id, 'resumed', null);
+          }
+        }
+      }
+    }
+
     await this.loadState();
     return this.getStudent(id);
   }
@@ -212,6 +248,233 @@ class AcademyDB {
   async deleteFamily(id) {
     await supabaseClient.from('families').delete().eq('id', id);
     await this.loadState();
+  }
+
+  // ── Student Schedules ──
+
+  getStudentSchedules(filter = {}) {
+    let list = [...this._data.studentSchedules];
+    if (filter.status) list = list.filter(s => s.status === filter.status);
+    if (filter.studentId) list = list.filter(s => s.student_id === filter.studentId);
+    return list.map(s => ({ ...s, studentId: s.student_id, teacherId: s.teacher_id, courseType: s.course_type, daysOfWeek: s.days_of_week, sessionTime: s.session_time, durationMin: s.duration_min, startDate: s.start_date }));
+  }
+
+  getStudentSchedule(studentId) {
+    const s = this._data.studentSchedules.find(s => s.student_id === studentId && s.status === 'active');
+    if (!s) {
+      // Also check paused schedules (so we can resume them)
+      const paused = this._data.studentSchedules.find(s => s.student_id === studentId);
+      if (!paused) return null;
+      return { ...paused, studentId: paused.student_id, teacherId: paused.teacher_id, courseType: paused.course_type, daysOfWeek: paused.days_of_week, sessionTime: paused.session_time, durationMin: paused.duration_min, startDate: paused.start_date };
+    }
+    return { ...s, studentId: s.student_id, teacherId: s.teacher_id, courseType: s.course_type, daysOfWeek: s.days_of_week, sessionTime: s.session_time, durationMin: s.duration_min, startDate: s.start_date };
+  }
+
+  getScheduleChangeLogs(studentId) {
+    return this._data.scheduleChangeLogs
+      .filter(l => l.student_id === studentId)
+      .sort((a, b) => b.changed_at.localeCompare(a.changed_at));
+  }
+
+  /**
+   * Main orchestrator: save/update a student schedule and regenerate sessions.
+   * @param {Object} data - { studentId, teacherId, courseType, daysOfWeek, sessionTime, durationMin, startDate }
+   */
+  async saveStudentSchedule(data) {
+    const { studentId, teacherId, courseType, daysOfWeek, sessionTime, durationMin, startDate } = data;
+
+    // Load fresh state
+    await this.loadState();
+
+    // Find existing schedule for this student
+    const existingRaw = this._data.studentSchedules.find(s => s.student_id === studentId);
+
+    let scheduleId;
+    const schedulePayload = {
+      student_id: studentId,
+      teacher_id: teacherId,
+      course_type: courseType,
+      days_of_week: daysOfWeek,
+      session_time: sessionTime,
+      duration_min: durationMin,
+      start_date: startDate,
+      status: 'active',
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existingRaw) {
+      // Detect what changed for audit log
+      const changedFields = {};
+      if (JSON.stringify(existingRaw.days_of_week) !== JSON.stringify(daysOfWeek)) changedFields.days = daysOfWeek;
+      if (existingRaw.session_time !== sessionTime) changedFields.time = sessionTime;
+      if (existingRaw.teacher_id !== teacherId) changedFields.teacher = teacherId;
+      if (existingRaw.course_type !== courseType) changedFields.course = courseType;
+      if (existingRaw.duration_min !== durationMin) changedFields.duration = durationMin;
+
+      scheduleId = existingRaw.id;
+      await supabaseClient.from('student_schedules').update(schedulePayload).eq('id', scheduleId);
+
+      // Cancel all future sessions from old schedule
+      await this.cancelFutureSessionsForStudent(studentId, 'updated');
+
+      await this._logScheduleChange(scheduleId, studentId, 'updated', JSON.stringify(changedFields));
+    } else {
+      // Create new schedule
+      const { data: inserted, error } = await supabaseClient.from('student_schedules').insert([schedulePayload]).select();
+      if (error) { console.error('Error inserting schedule:', error); throw error; }
+      scheduleId = inserted[0].id;
+      await this._logScheduleChange(scheduleId, studentId, 'created', null);
+    }
+
+    // Reload so we have the new schedule record
+    await this.loadState();
+
+    // Generate sessions for next 4 weeks starting from startDate (or today if startDate is past)
+    const genFrom = new Date(startDate);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    if (genFrom < today) genFrom.setTime(today.getTime());
+
+    const freshSched = this._data.studentSchedules.find(s => s.id === scheduleId);
+    if (freshSched) {
+      await this._generateAndInsertSessions(freshSched, genFrom);
+    }
+
+    await this.loadState();
+    return scheduleId;
+  }
+
+  /**
+   * Generate sessions for next 4 weeks from startFrom date and insert them.
+   */
+  async _generateAndInsertSessions(sched, startFrom) {
+    const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const daysOfWeek = sched.days_of_week || [];
+    const durationMin = sched.duration_min || 60;
+    const sessionTime = typeof sched.session_time === 'string' ? sched.session_time.substring(0, 5) : '09:00';
+    const teacherId = sched.teacher_id;
+    const courseType = sched.course_type;
+    const studentId = sched.student_id;
+    const scheduleId = sched.id;
+
+    // Generate 4 weeks (28 days) of sessions
+    const endDate = new Date(startFrom);
+    endDate.setDate(endDate.getDate() + 28);
+
+    const sessionInserts = [];
+    const current = new Date(startFrom);
+
+    while (current <= endDate) {
+      const dayName = DAY_NAMES[current.getDay()];
+      if (daysOfWeek.includes(dayName)) {
+        const dateStr = current.toISOString().split('T')[0];
+        const sessionId = `SES-${Date.now()}-${Math.floor(Math.random()*9000)+1000}`;
+        sessionInserts.push({
+          id: sessionId,
+          course_type: courseType,
+          teacher_id: teacherId,
+          date: dateStr,
+          time: sessionTime,
+          duration: durationMin,
+          recurrence: 'weekly',
+          status: 'scheduled',
+          zoom_link: `https://us02web.zoom.us/j/${Math.floor(Math.random()*9000000000)+1000000000}`,
+          notes: '',
+          color: this._courseColor(courseType),
+          schedule_id: scheduleId,
+        });
+      }
+      current.setDate(current.getDate() + 1);
+      // Small delay to ensure unique IDs
+      await new Promise(r => setTimeout(r, 1));
+    }
+
+    if (sessionInserts.length === 0) return [];
+
+    // Insert sessions in batches
+    const { error: sessErr } = await supabaseClient.from('sessions').insert(sessionInserts);
+    if (sessErr) { console.error('Error inserting sessions:', sessErr); }
+
+    // Link each session to the student
+    const studentLinks = sessionInserts.map(s => ({ session_id: s.id, student_id: studentId }));
+    const { error: linkErr } = await supabaseClient.from('session_students').insert(studentLinks);
+    if (linkErr) { console.error('Error inserting session_students:', linkErr); }
+
+    return sessionInserts;
+  }
+
+  /**
+   * Preview sessions that would be generated (no DB writes).
+   * Returns array of { date, dayName } for the next N occurrences.
+   */
+  previewScheduleSessions(daysOfWeek, startDate, count = 4) {
+    const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const results = [];
+    const current = new Date(startDate);
+    const today = new Date(); today.setHours(0,0,0,0);
+    if (current < today) current.setTime(today.getTime());
+    let safety = 0;
+    while (results.length < count && safety < 120) {
+      const dayName = DAY_NAMES[current.getDay()];
+      if (daysOfWeek.includes(dayName)) {
+        results.push({ date: current.toISOString().split('T')[0], dayName });
+      }
+      current.setDate(current.getDate() + 1);
+      safety++;
+    }
+    return results;
+  }
+
+  /**
+   * Cancel all future scheduled sessions for a student (date > today, status = scheduled/upcoming).
+   */
+  async cancelFutureSessionsForStudent(studentId, reason = 'cancelled') {
+    const today = new Date().toISOString().split('T')[0];
+    const futureSessions = this._data.sessions.filter(s => {
+      const isForStudent = s.studentIds && s.studentIds.includes(studentId);
+      const isFuture = s.date > today;
+      const isCancellable = s.status === 'scheduled' || s.status === 'upcoming';
+      return isForStudent && isFuture && isCancellable;
+    });
+
+    if (futureSessions.length === 0) return 0;
+
+    const ids = futureSessions.map(s => s.id);
+    await supabaseClient.from('sessions').update({ status: 'cancelled' }).in('id', ids);
+    return ids.length;
+  }
+
+  /**
+   * Cancel all future sessions generated by a specific schedule_id.
+   */
+  async cancelFutureSessionsBySchedule(scheduleId) {
+    const today = new Date().toISOString().split('T')[0];
+    const futureSessions = this._data.sessions.filter(s => {
+      return s.schedule_id === scheduleId && s.date > today && (s.status === 'scheduled' || s.status === 'upcoming');
+    });
+    if (futureSessions.length === 0) return 0;
+    const ids = futureSessions.map(s => s.id);
+    await supabaseClient.from('sessions').update({ status: 'cancelled' }).in('id', ids);
+    return ids.length;
+  }
+
+  _courseColor(courseType) {
+    const map = { Quran: 'green', Arabic: 'blue', Fiqh: 'purple' };
+    return map[courseType] || 'gray';
+  }
+
+  async _logScheduleChange(scheduleId, studentId, changeType, changedFields) {
+    try {
+      const user = window.currentUser || {};
+      await supabaseClient.from('schedule_change_log').insert([{
+        schedule_id: scheduleId,
+        student_id: studentId,
+        change_type: changeType,
+        changed_fields: changedFields,
+        changed_by: user.email || 'admin',
+        changed_at: new Date().toISOString(),
+      }]);
+    } catch(e) { console.warn('Could not log schedule change:', e); }
   }
 
   // ── Sessions ──
