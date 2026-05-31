@@ -283,6 +283,16 @@ class AcademyDB {
   async saveStudentSchedule(data) {
     const { studentId, teacherId, courseType, daysOfWeek, sessionTime, durationMin, startDate } = data;
 
+    console.log('[Schedule] saveStudentSchedule called:', {
+      studentId, teacherId, courseType, daysOfWeek, sessionTime, durationMin, startDate
+    });
+
+    // Validate inputs before touching DB
+    if (!studentId) throw new Error('Missing studentId');
+    if (!Array.isArray(daysOfWeek) || daysOfWeek.length === 0) throw new Error('No days selected');
+    if (!sessionTime) throw new Error('Missing sessionTime');
+    if (!startDate) throw new Error('Missing startDate');
+
     // Load fresh state
     await this.loadState();
 
@@ -290,54 +300,71 @@ class AcademyDB {
     const existingRaw = this._data.studentSchedules.find(s => s.student_id === studentId);
 
     let scheduleId;
+    // Normalise sessionTime to HH:MM (UI gives HH:MM, Supabase may store HH:MM:SS)
+    const normTime = sessionTime.substring(0, 5);
     const schedulePayload = {
       student_id: studentId,
       teacher_id: teacherId,
       course_type: courseType,
       days_of_week: daysOfWeek,
-      session_time: sessionTime,
+      session_time: normTime,
       duration_min: durationMin,
       start_date: startDate,
       status: 'active',
       updated_at: new Date().toISOString(),
     };
 
+    console.log('[Schedule] Payload to student_schedules:', schedulePayload);
+
     if (existingRaw) {
       // Detect what changed for audit log
       const changedFields = {};
       if (JSON.stringify(existingRaw.days_of_week) !== JSON.stringify(daysOfWeek)) changedFields.days = daysOfWeek;
-      if (existingRaw.session_time !== sessionTime) changedFields.time = sessionTime;
+      const existingTime = (existingRaw.session_time || '').substring(0, 5);
+      if (existingTime !== normTime) changedFields.time = normTime;
       if (existingRaw.teacher_id !== teacherId) changedFields.teacher = teacherId;
       if (existingRaw.course_type !== courseType) changedFields.course = courseType;
       if (existingRaw.duration_min !== durationMin) changedFields.duration = durationMin;
 
       scheduleId = existingRaw.id;
-      await supabaseClient.from('student_schedules').update(schedulePayload).eq('id', scheduleId);
+      const { error: updErr } = await supabaseClient.from('student_schedules').update(schedulePayload).eq('id', scheduleId);
+      if (updErr) console.error('[Schedule] Error updating schedule:', updErr);
+      else console.log('[Schedule] Updated existing schedule:', scheduleId);
 
       // Cancel all future sessions from old schedule
-      await this.cancelFutureSessionsForStudent(studentId, 'updated');
+      const cancelled = await this.cancelFutureSessionsForStudent(studentId, 'updated');
+      console.log(`[Schedule] Cancelled ${cancelled} future sessions.`);
 
       await this._logScheduleChange(scheduleId, studentId, 'updated', JSON.stringify(changedFields));
     } else {
       // Create new schedule
       const { data: inserted, error } = await supabaseClient.from('student_schedules').insert([schedulePayload]).select();
-      if (error) { console.error('Error inserting schedule:', error); throw error; }
+      if (error) { console.error('[Schedule] Error inserting schedule:', error); throw error; }
       scheduleId = inserted[0].id;
+      console.log('[Schedule] Created new schedule:', scheduleId);
       await this._logScheduleChange(scheduleId, studentId, 'created', null);
     }
 
     // Reload so we have the new schedule record
     await this.loadState();
 
-    // Generate sessions for next 4 weeks starting from startDate (or today if startDate is past)
-    const genFrom = new Date(startDate);
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    if (genFrom < today) genFrom.setTime(today.getTime());
+    // FIX: build startFrom using local-midnight to avoid UTC timezone day-shift.
+    // new Date('YYYY-MM-DD') is UTC midnight → wrong weekday in UTC+ timezones.
+    const [sy, sm, sd] = startDate.split('-').map(Number);
+    const genFrom = new Date(sy, sm - 1, sd); // local midnight
+    const todayLocal = new Date();
+    todayLocal.setHours(0, 0, 0, 0);
+    if (genFrom < todayLocal) {
+      genFrom.setFullYear(todayLocal.getFullYear(), todayLocal.getMonth(), todayLocal.getDate());
+    }
+
+    console.log('[Schedule] genFrom (local):', genFrom.toDateString());
 
     const freshSched = this._data.studentSchedules.find(s => s.id === scheduleId);
     if (freshSched) {
       await this._generateAndInsertSessions(freshSched, genFrom);
+    } else {
+      console.error('[Schedule] Could not find freshSched after reload — ID:', scheduleId);
     }
 
     await this.loadState();
@@ -346,59 +373,109 @@ class AcademyDB {
 
   /**
    * Generate sessions for next 4 weeks from startFrom date and insert them.
+   * BUG FIXES:
+   *   1. Use local-midnight date construction (avoids UTC timezone day-shift).
+   *   2. Use a counter for unique IDs (avoids Date.now() collisions in tight loop).
+   *   3. Normalise session_time to HH:MM before use.
    */
   async _generateAndInsertSessions(sched, startFrom) {
     const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const daysOfWeek = sched.days_of_week || [];
     const durationMin = sched.duration_min || 60;
-    const sessionTime = typeof sched.session_time === 'string' ? sched.session_time.substring(0, 5) : '09:00';
+    // Normalise time: Supabase may return "09:00:00", we only want "09:00"
+    const rawTime = sched.session_time || '09:00';
+    const sessionTime = typeof rawTime === 'string' ? rawTime.substring(0, 5) : '09:00';
     const teacherId = sched.teacher_id;
     const courseType = sched.course_type;
     const studentId = sched.student_id;
     const scheduleId = sched.id;
 
-    // Generate 4 weeks (28 days) of sessions
-    const endDate = new Date(startFrom);
-    endDate.setDate(endDate.getDate() + 28);
+    console.log('[Schedule] Generating sessions:', {
+      scheduleId, studentId, teacherId, courseType,
+      daysOfWeek, sessionTime, durationMin,
+      startFrom: startFrom.toISOString()
+    });
 
+    // --------‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑
+    // Build the list of sessions for the next 28 days (4 weeks)
+    //   • Use a **local‑midnight** date (new Date(y,m,d)) to avoid UTC‑day‑shift.
+    //   • Loop day‑by‑day and keep only the dates whose weekday is in the
+    //     user‑selected `daysOfWeek` array.
+    //   • Generate a **unique ID** for each session by appending an
+    //     incrementing counter to the current timestamp.
+    //   • Insert the generated rows in a single batch and then link each
+    //     session to the student via `session_students`.
+    // ---------------------------------------------------------------------------
+
+    const start = new Date(startFrom.getFullYear(), startFrom.getMonth(), startFrom.getDate()); // local midnight
     const sessionInserts = [];
-    const current = new Date(startFrom);
+    let idCounter = 0;
 
-    while (current <= endDate) {
-      const dayName = DAY_NAMES[current.getDay()];
-      if (daysOfWeek.includes(dayName)) {
-        const dateStr = current.toISOString().split('T')[0];
-        const sessionId = `SES-${Date.now()}-${Math.floor(Math.random()*9000)+1000}`;
-        sessionInserts.push({
-          id: sessionId,
-          course_type: courseType,
-          teacher_id: teacherId,
-          date: dateStr,
-          time: sessionTime,
-          duration: durationMin,
-          recurrence: 'weekly',
-          status: 'scheduled',
-          zoom_link: `https://us02web.zoom.us/j/${Math.floor(Math.random()*9000000000)+1000000000}`,
-          notes: '',
-          color: this._courseColor(courseType),
-          schedule_id: scheduleId,
-        });
-      }
-      current.setDate(current.getDate() + 1);
-      // Small delay to ensure unique IDs
-      await new Promise(r => setTimeout(r, 1));
+    for (let offset = 0; offset < 28; offset++) {
+      const day = new Date(start);
+      day.setDate(start.getDate() + offset);
+
+      const dayName = DAY_NAMES[day.getDay()];
+      if (!daysOfWeek.includes(dayName)) continue;   // skip non‑selected weekdays
+
+      // Assemble YYYY‑MM‑DD string from *local* components
+      const yr = day.getFullYear();
+      const mo = String(day.getMonth() + 1).padStart(2, '0');
+      const dt = String(day.getDate()).padStart(2, '0');
+      const dateStr = `${yr}-${mo}-${dt}`;
+
+      // Guarantees a unique session ID even when the loop runs fast
+      idCounter++;
+      const sessionId = `SES-${Date.now()}-${String(idCounter).padStart(4, '0')}`;
+
+      sessionInserts.push({
+        id: sessionId,
+        course_type: courseType,
+        teacher_id: teacherId,
+        date: dateStr,
+        time: sessionTime,
+        duration: durationMin,
+        recurrence: 'weekly',
+        status: 'scheduled',
+        zoom_link: `https://us02web.zoom.us/j/${Math.floor(Math.random()*9000000000)+1000000000}`,
+        notes: '',
+        color: this._courseColor(courseType),
+        schedule_id: scheduleId,
+      });
+
+      console.log(`[Schedule]  + Session on ${dateStr} (${dayName})`);
     }
 
-    if (sessionInserts.length === 0) return [];
+    console.log(`[Schedule] Total sessions to insert: ${sessionInserts.length}`);
 
-    // Insert sessions in batches
-    const { error: sessErr } = await supabaseClient.from('sessions').insert(sessionInserts);
-    if (sessErr) { console.error('Error inserting sessions:', sessErr); }
+    if (sessionInserts.length === 0) {
+      console.warn('[Schedule] Zero sessions generated — check daysOfWeek and startFrom.');
+      return [];
+    }
 
-    // Link each session to the student
+    // Insert all sessions in one batch
+    const { data: insertedSessions, error: sessErr } = await supabaseClient
+      .from('sessions')
+      .insert(sessionInserts)
+      .select('id');
+
+    if (sessErr) {
+      console.error('[Schedule] ERROR inserting sessions:', sessErr);
+    } else {
+      console.log(`[Schedule] Successfully inserted ${insertedSessions?.length} sessions into Supabase.`);
+    }
+
+    // Link every session to the student in session_students
     const studentLinks = sessionInserts.map(s => ({ session_id: s.id, student_id: studentId }));
-    const { error: linkErr } = await supabaseClient.from('session_students').insert(studentLinks);
-    if (linkErr) { console.error('Error inserting session_students:', linkErr); }
+    const { error: linkErr } = await supabaseClient
+      .from('session_students')
+      .insert(studentLinks);
+
+    if (linkErr) {
+      console.error('[Schedule] ERROR inserting session_students links:', linkErr);
+    } else {
+      console.log(`[Schedule] Linked ${studentLinks.length} sessions to student ${studentId}.`);
+    }
 
     return sessionInserts;
   }
@@ -410,14 +487,20 @@ class AcademyDB {
   previewScheduleSessions(daysOfWeek, startDate, count = 4) {
     const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const results = [];
-    const current = new Date(startDate);
+    // FIX: parse startDate as local midnight (not UTC) to avoid weekday shift in UTC+ timezones
+    const [py, pm, pd] = startDate.split('-').map(Number);
+    const current = new Date(py, pm - 1, pd);
     const today = new Date(); today.setHours(0,0,0,0);
-    if (current < today) current.setTime(today.getTime());
+    if (current < today) current.setFullYear(today.getFullYear(), today.getMonth(), today.getDate());
     let safety = 0;
     while (results.length < count && safety < 120) {
       const dayName = DAY_NAMES[current.getDay()];
       if (daysOfWeek.includes(dayName)) {
-        results.push({ date: current.toISOString().split('T')[0], dayName });
+        // Build date string from local components
+        const yr = current.getFullYear();
+        const mo = String(current.getMonth() + 1).padStart(2, '0');
+        const dt = String(current.getDate()).padStart(2, '0');
+        results.push({ date: `${yr}-${mo}-${dt}`, dayName });
       }
       current.setDate(current.getDate() + 1);
       safety++;
@@ -482,7 +565,11 @@ class AcademyDB {
     let list = [...this._data.sessions];
     if (filter.teacherId) list = list.filter(s => s.teacher_id === filter.teacherId || s.teacherId === filter.teacherId);
     if (filter.studentId) list = list.filter(s => s.studentIds && s.studentIds.includes(filter.studentId));
-    if (filter.status) list = list.filter(s => s.status === filter.status);
+    if (filter.status) {
+      // Support both a single string and an array of statuses
+      const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
+      list = list.filter(s => statuses.includes(s.status));
+    }
     if (filter.date) list = list.filter(s => s.date === filter.date);
     if (filter.month) list = list.filter(s => s.date && s.date.startsWith(filter.month));
     list.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
